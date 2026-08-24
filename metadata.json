@@ -1,0 +1,6 @@
+{
+  "name": "36h Life Simulator",
+  "description": "An endless narrative life simulation game taking place on an Earth-like planet with a 36-hour day cycle. Features real-time task progression, banking, vitals management, and AI-driven narrative interactions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

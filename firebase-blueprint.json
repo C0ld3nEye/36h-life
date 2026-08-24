@@ -1,0 +1,20 @@
+{
+  "entities": {
+    "GameState": {
+      "title": "GameState",
+      "description": "The user's saved game state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "gameState": { "type": "object", "description": "The serialized game state from Zustand" }
+      },
+      "required": ["uid", "gameState"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/GameState" },
+      "description": "User game state"
+    }
+  }
+}
