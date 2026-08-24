@@ -273,7 +273,11 @@ function sanitizeStatePayload(state: GameState): Partial<GameState> {
       Object.entries(state.locations).map(([k, l]) => [k, { ...l, imageUrl: undefined }])
     ) : {},
     agenda: state.agenda || [],
-    diary: (state.diary || []).slice(-15)
+    diary: (state.diary || []).slice(-15),
+    inventory: Array.isArray(state.inventory) ? state.inventory : [],
+    plotLeads: Array.isArray(state.plotLeads) ? state.plotLeads : [],
+    rumors: Array.isArray(state.rumors) ? state.rumors : [],
+    messages: Array.isArray(state.messages) ? state.messages : []
   };
 }
 

@@ -193,6 +193,9 @@ export function mergeGameStates(local: any, remote: any): any {
       ...(primary.bank || {}),
       transactions: mergedTransactions
     },
+    epochRealTime: (typeof primary.epochRealTime === 'number' && primary.epochRealTime > 0) 
+      ? primary.epochRealTime 
+      : ((typeof secondary.epochRealTime === 'number' && secondary.epochRealTime > 0) ? secondary.epochRealTime : Date.now()),
     lastUpdateTime: Math.max(localTime, remoteTime, Date.now())
   };
 }

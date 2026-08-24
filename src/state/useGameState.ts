@@ -580,12 +580,16 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
         const now = Date.now();
         get().updateVitals(validation.vitalDrain);
 
+        // Advance in-game epoch time so the calendar date and clock advance
+        const currentEpoch = currentState.epochRealTime || now;
+        const newEpoch = currentEpoch - ((minutes * 60 * 1000) / GAME_TIME_MULTIPLIER);
+
         // Check if game duration completed
         const statusEval = DeterministicRulesEngine.evaluateGameStatus(get());
         if (statusEval.status !== 'active') {
-          set({ gameStatus: statusEval.status, epilogueSummary: statusEval.reason, lastUpdateTime: now });
+          set({ epochRealTime: newEpoch, gameStatus: statusEval.status, epilogueSummary: statusEval.reason, lastUpdateTime: now });
         } else {
-          set({ lastUpdateTime: now });
+          set({ epochRealTime: newEpoch, lastUpdateTime: now });
         }
         return { success: true };
       }
@@ -842,6 +846,9 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     return {
       ...state,
       ...savedState,
+      epochRealTime: (typeof savedState.epochRealTime === 'number' && savedState.epochRealTime > 0)
+        ? savedState.epochRealTime
+        : (state.epochRealTime || Date.now()),
       characters: cleanChars,
       locations: cleanLocs,
       diary: Array.isArray(savedState.diary) ? savedState.diary : (state.diary || []),
