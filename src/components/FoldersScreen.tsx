@@ -16,6 +16,8 @@ import { api } from '../lib/api';
 import { compressImageDataUrl } from '../lib/imageCompressor';
 import { InteractiveCityMap } from './InteractiveCityMap';
 import { InventoryView } from './InventoryView';
+import { PlotLeadsView } from './PlotLeadsView';
+import { MessagesView } from './MessagesView';
 
 function getSkillIcon(name: string) {
   const n = name.toLowerCase();
@@ -97,12 +99,13 @@ function getDiaryCategoryBadge(category?: DiaryEntry['category']) {
 export function FoldersScreen() {
   const { 
     diary, episodicMemories, locations, characters, skills, inventory,
+    plotLeads = [], rumors = [], messages = [],
     updateCharacterNotes, updateLocationNotes, updateCharacterImage, updateLocationImage,
     deleteCharacter, deleteLocation,
     addDiaryEntry, updateDiaryEntry, deleteDiaryEntry
   } = useGameStore();
 
-  const [activeFolder, setActiveFolder] = useState<'diary' | 'locations' | 'characters' | 'skills' | 'inventory' | null>(null);
+  const [activeFolder, setActiveFolder] = useState<'diary' | 'locations' | 'characters' | 'skills' | 'inventory' | 'plots' | 'messages' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Diary specific state
@@ -280,9 +283,12 @@ export function FoldersScreen() {
   };
 
   const inventoryList = inventory || [];
+  const unreadMessagesCount = (messages || []).filter(m => !m.read).length;
 
   const folders = [
     { id: 'inventory', label: 'Inventaire & Frigo', count: inventoryList.length, icon: Package, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { id: 'plots', label: 'Pistes & Rumeurs', count: (plotLeads?.length || 0) + (rumors?.length || 0), icon: Compass, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { id: 'messages', label: 'Messagerie & Contacts', count: unreadMessagesCount > 0 ? `${unreadMessagesCount} non lu(s)` : (messages?.length || 0), icon: MessageSquare, color: 'text-sky-400', bg: 'bg-sky-500/10' },
     { id: 'skills', label: 'Compétences', count: skillArray.length, icon: BrainCircuit, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { id: 'diary', label: 'Journal Intime', count: diary.length, icon: Book, color: 'text-sky-400', bg: 'bg-sky-500/10' },
     { id: 'locations', label: 'Lieux Explorés', count: locArray.length, icon: Map, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
@@ -357,7 +363,13 @@ export function FoldersScreen() {
         </div>
 
         {/* Content Container */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar flex flex-col">
+          {/* PLOT LEADS & RUMORS TAB */}
+          {activeFolder === 'plots' && <PlotLeadsView />}
+
+          {/* MESSAGES & ASYNC CONTACTS TAB */}
+          {activeFolder === 'messages' && <MessagesView />}
+
           {/* SKILLS TAB */}
           {activeFolder === 'skills' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-w-5xl mx-auto">
@@ -622,7 +634,7 @@ export function FoldersScreen() {
                             <span className="text-[11px] text-slate-500 font-mono">
                               {dateStr}
                             </span>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
                               <button
                                 onClick={() => openEditDiaryModal(entry)}
                                 className="p-1 text-slate-400 hover:text-sky-300 hover:bg-white/10 rounded-md transition-colors"
@@ -631,16 +643,17 @@ export function FoldersScreen() {
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm("Supprimer cette page du journal ?")) {
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm("Supprimer DÉFINITIVEMENT cette page du journal ?")) {
                                     deleteDiaryEntry(entry.id);
                                     showToast("Entrée supprimée.");
                                   }
                                 }}
-                                className="p-1 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-md transition-colors"
-                                title="Supprimer"
+                                className="p-1.5 text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-500 border border-rose-500/30 rounded-md transition-colors"
+                                title="Supprimer définitivement"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -705,6 +718,7 @@ export function FoldersScreen() {
                 <div className="bg-slate-950/80 rounded-2xl border border-white/10 overflow-hidden min-h-[500px]">
                   <InteractiveCityMap 
                     onSelectLocation={(loc) => openLocModal(loc)}
+                    onImageClick={(src, title) => setLightboxImage({ src, title })}
                     onFastTravelAction={(actionText) => {
                       // Trigger travel narrative
                       useGameStore.getState().addNarrative('user', actionText);
@@ -735,20 +749,36 @@ export function FoldersScreen() {
                       const catBadge = getLocationCategoryBadge(loc.category);
                       const CatIcon = catBadge.icon;
                       return (
-                        <button
+                        <div
                           key={loc.id}
                           onClick={() => openLocModal(loc)}
-                          className="bg-slate-900/90 p-3 rounded-xl border border-white/10 shadow-md flex flex-col gap-2 text-left hover:border-emerald-500/40 hover:bg-slate-800/80 transition-all group overflow-hidden"
+                          className="relative bg-slate-900/90 p-3 rounded-xl border border-white/10 shadow-md flex flex-col gap-2 text-left hover:border-emerald-500/40 hover:bg-slate-800/80 transition-all group overflow-hidden cursor-pointer"
                         >
+                          <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Supprimer définitivement le lieu "${loc.name}" des archives ?`)) {
+                                  deleteLocation(loc.id);
+                                }
+                              }}
+                              className="p-1.5 bg-rose-950/90 hover:bg-rose-600 text-rose-300 hover:text-white rounded-md border border-rose-500/50 shadow-sm transition-all"
+                              title="Supprimer définitivement"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                           {loc.imageUrl && (
-                            <div className="w-full h-24 rounded-lg overflow-hidden border border-white/10 shrink-0 relative">
-                              <img 
-                                src={loc.imageUrl} 
-                                alt={loc.name} 
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                            <div className="w-full h-24 rounded-lg overflow-hidden border border-white/10 shrink-0 relative group/img">
+                              <img src={loc.imageUrl} alt={loc.name} referrerPolicy="no-referrer" onClick={(e) => { e.stopPropagation(); setLightboxImage({ src: loc.imageUrl, title: loc.name }); }} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer relative z-20" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
+                              <div 
+                                onClick={(e) => { e.stopPropagation(); setLightboxImage({ src: loc.imageUrl, title: loc.name }); }}
+                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity backdrop-blur-[1px]"
+                                title="Voir en plein écran"
+                              >
+                                <ZoomIn className="w-6 h-6 text-white" />
+                              </div>
                             </div>
                           )}
 
@@ -779,7 +809,7 @@ export function FoldersScreen() {
                             <span className="text-slate-500">Lieu répertorié</span>
                             <span className="group-hover:translate-x-0.5 transition-transform">Voir la fiche →</span>
                           </div>
-                        </button>
+                        </div>
                       );
                     })
                   )}
@@ -800,20 +830,32 @@ export function FoldersScreen() {
                 </div>
               ) : (
                 filteredChars.map(char => (
-                  <button
+                  <div
                     key={char.id}
                     onClick={() => openCharModal(char)}
-                    className="bg-slate-900/90 p-3 rounded-xl border border-white/10 shadow-md flex flex-col gap-2 text-left hover:border-rose-500/40 hover:bg-slate-800/80 transition-all group"
+                    className="relative bg-slate-900/90 p-3 rounded-xl border border-white/10 shadow-md flex flex-col gap-2 text-left hover:border-rose-500/40 hover:bg-slate-800/80 transition-all group cursor-pointer"
                   >
-                    <div className="flex items-start justify-between gap-2 w-full">
+                    <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Supprimer définitivement le personnage "${char.name}" des archives ?`)) {
+                            deleteCharacter(char.id);
+                          }
+                        }}
+                        className="p-1.5 bg-rose-950/90 hover:bg-rose-600 text-rose-300 hover:text-white rounded-md border border-rose-500/50 shadow-sm transition-all"
+                        title="Supprimer définitivement"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-start justify-between gap-2 w-full pr-8">
                       <div className="flex items-center gap-2 min-w-0">
                         {char.imageUrl ? (
-                          <img 
-                            src={char.imageUrl} 
-                            alt={char.name} 
-                            referrerPolicy="no-referrer"
-                            className="w-9 h-9 rounded-full object-cover shrink-0 border border-rose-500/40 shadow-sm"
-                          />
+                          <div className="relative group/img w-9 h-9 rounded-full shrink-0 border border-rose-500/40 shadow-sm overflow-hidden">
+                            <img src={char.imageUrl} alt={char.name} referrerPolicy="no-referrer" onClick={(e) => { e.stopPropagation(); setLightboxImage({ src: char.imageUrl, title: char.name }); }} className="w-full h-full object-cover cursor-pointer relative z-20" />
+                            
+                          </div>
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-rose-500/20 text-rose-300 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-500/30">
                             {char.name.charAt(0).toUpperCase()}
@@ -850,7 +892,7 @@ export function FoldersScreen() {
                       <span className="text-slate-500 truncate">{char.locationEncountered || 'Inconnu'}</span>
                       <span className="group-hover:translate-x-0.5 transition-transform shrink-0">Voir dossier →</span>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>

@@ -92,9 +92,10 @@ function getCategoryColor(category?: LocationProfile['category']) {
 interface InteractiveCityMapProps {
   onSelectLocation?: (location: LocationProfile) => void;
   onFastTravelAction?: (actionText: string) => void;
+  onImageClick?: (src: string, title: string) => void;
 }
 
-export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: InteractiveCityMapProps) {
+export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onImageClick }: InteractiveCityMapProps) {
   const { locations = {}, setCurrentLocation, updateLocationImage } = useGameStore();
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [activeLocDetails, setActiveLocDetails] = useState<LocationProfile | null>(null);
@@ -140,14 +141,16 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: Int
   }, [locList, mapSearch, selectedDistrict]);
 
   const handleTravelTo = (loc: LocationProfile, mode: 'a_pied' | 'transport' = 'a_pied') => {
-    const modeLabel = mode === 'a_pied' ? "à pied" : "en transport rapide";
+    const isWalking = mode === 'a_pied';
+    const estimatedMinutes = isWalking ? 20 : 10;
+    const modeLabel = isWalking ? "à pied (~20 min)" : "en monorail express (~10 min)";
     const prompt = `Je me déplace ${modeLabel} en direction de : "${loc.name}" (${loc.district || 'la ville'}). Décris mon trajet et mon arrivée sur place.`;
     
     if (onFastTravelAction) {
       onFastTravelAction(prompt);
       setActiveLocDetails(null);
     } else {
-      // Fallback direct update
+      // Direct update with state transition
       setCurrentLocation(loc.id);
       setActiveLocDetails(null);
     }
@@ -297,9 +300,10 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: Int
                                   src={loc.imageUrl} 
                                   alt={loc.name} 
                                   referrerPolicy="no-referrer"
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  onClick={(e) => { e.stopPropagation(); if(onImageClick) onImageClick(loc.imageUrl, loc.name); }}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
                               </div>
                             )}
 
@@ -364,12 +368,13 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: Int
                   {loc.imageUrl && (
                     <div className="w-full h-20 rounded-lg overflow-hidden border border-white/10 shrink-0 relative">
                       <img 
-                        src={loc.imageUrl} 
-                        alt={loc.name} 
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+                                  src={loc.imageUrl} 
+                                  alt={loc.name} 
+                                  referrerPolicy="no-referrer"
+                                  onClick={(e) => { e.stopPropagation(); if(onImageClick) onImageClick(loc.imageUrl, loc.name); }}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                                />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent pointer-events-none" />
                     </div>
                   )}
 
@@ -456,9 +461,10 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: Int
                     src={activeLocDetails.imageUrl} 
                     alt={activeLocDetails.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onClick={(e) => { e.stopPropagation(); if(onImageClick) onImageClick(activeLocDetails.imageUrl, activeLocDetails.name); }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute bottom-2 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleDeleteMapLocVisual(activeLocDetails)}
@@ -525,7 +531,10 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: Int
                     <div className="flex items-center gap-2">
                       <Footprints className="w-4 h-4 text-emerald-400" />
                       <div>
-                        <div className="text-xs font-bold text-slate-100">Trajet à pied</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-100">Trajet à pied</span>
+                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/30">~20 min</span>
+                        </div>
                         <div className="text-[10px] text-slate-400">Balade urbaine rythmée</div>
                       </div>
                     </div>
@@ -539,8 +548,11 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction }: Int
                     <div className="flex items-center gap-2">
                       <Train className="w-4 h-4 text-sky-400" />
                       <div>
-                        <div className="text-xs font-bold text-slate-100">Monorail / Navette</div>
-                        <div className="text-[10px] text-slate-400">Déplacement rapide</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-100">Monorail / Navette</span>
+                          <span className="text-[10px] font-semibold text-sky-400 bg-sky-950/80 px-1.5 py-0.2 rounded border border-sky-500/30">~10 min</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">Déplacement rapide sécurisé</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all" />

@@ -13,15 +13,20 @@ import { useGameStore } from './state/useGameState';
 import { api } from './lib/api';
 import { loadGameStateFromIDB } from './lib/dbPersistence';
 import { triggerCloudSave, subscribeToCloudChanges } from './lib/cloudSync';
+import { getAtmosphereForHour } from './lib/atmosphere';
+import { getGameDateInfo, cn } from './lib/utils';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'home' | 'folders' | 'agenda' | 'bank'>('home');
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [user, setUser] = useState<User | null>(auth.currentUser);
   
-  const { tick, autopilotMode, addOfflineRecap, loaded, loadState, setLoaded } = useGameStore();
+  const { tick, autopilotMode, addOfflineRecap, loaded, loadState, setLoaded, epochRealTime } = useGameStore();
   const isSyncingFromRemoteRef = useRef(false);
   const isCheckingOfflineRef = useRef(false);
+
+  const dateInfo = getGameDateInfo(epochRealTime);
+  const atmosphere = getAtmosphereForHour(dateInfo.gameHourOfDay);
 
   // 1. Initial State Loading & Multi-Device Resolution
   useEffect(() => {
@@ -384,7 +389,10 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 flex justify-center bg-[#020617] w-full h-[100dvh] font-sans text-slate-200 overflow-hidden overscroll-none touch-none">
+    <div className={cn(
+      "fixed inset-0 flex justify-center bg-gradient-to-b transition-colors duration-1000 w-full h-[100dvh] font-sans text-slate-200 overflow-hidden overscroll-none touch-none",
+      atmosphere.skyGradient
+    )}>
       <div className="w-full max-w-md h-full bg-transparent relative shadow-2xl overflow-hidden flex flex-col border-x border-white/5 overscroll-none">
         <TopBar 
           onSleep={() => setShowSleepModal(true)} 

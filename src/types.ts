@@ -196,6 +196,61 @@ export type EpisodicMemory = {
   embedding?: number[];
 };
 
+// Architecture preparation for Future Addition 2: Ambiance visuelle du Cycle 36h
+export type CyclePhaseKey = 'aube' | 'matin' | 'zenith' | 'apres_midi' | 'crepuscule' | 'nuit';
+
+export type CycleAtmosphereTheme = {
+  key: CyclePhaseKey;
+  phaseName: string;
+  subtext: string;
+  skyGradient: string;
+  ambientTone: string; // Tailwind color token or hex
+  glowColor: string;
+  accentBorder: string;
+  lightingDescription: string;
+};
+
+// Architecture preparation for Future Addition 3: Journal des Intrigues & Rumeurs
+export type PlotLeadStatus = 'actif' | 'en_pause' | 'resolu' | 'abandonne';
+
+export type PlotLead = {
+  id: string;
+  title: string;
+  category: 'emploi' | 'mystere' | 'quartier' | 'personnel' | 'finance';
+  status: PlotLeadStatus;
+  qualitativeStage: string; // Qualitative status e.g. "Premiers indices recueillis", "En attente d'un retour", "Sur le point d'aboutir" (No numbers)
+  clues: string[];
+  relatedCharacterIds?: string[];
+  relatedLocationIds?: string[];
+  discoveredGameDateStr?: string;
+  notes?: string;
+};
+
+export type RumorEntry = {
+  id: string;
+  text: string;
+  source: string; // e.g. "Entendu au Bistro Saint-Michel", "Discussion entre voisins"
+  credibility: 'faible' | 'plausible' | 'averee';
+  discoveredGameDateStr?: string;
+  district?: string;
+};
+
+// Architecture preparation for Future Addition 4: Contacts & Messages asynchrones
+export type ContactMessage = {
+  id: string;
+  senderId: string; // Character ID or 'system' / 'inconnu'
+  senderName: string;
+  senderAvatar?: string;
+  preview: string;
+  content: string;
+  timestampReal: number;
+  timestampGameDateStr?: string;
+  read: boolean;
+  replied?: boolean;
+  attachedAgendaEventId?: string;
+  replyOptions?: string[]; // Qualitative quick responses the player can choose
+};
+
 export type GameState = {
   epochRealTime: number; // When the game started in real world time
   vitals: Vitals;
@@ -213,7 +268,15 @@ export type GameState = {
   choices: string[];
   lastUpdateTime: number;
   narrativeArcs?: string[];
+  newPlotLeads?: Omit<PlotLead, 'id'>[];
+  updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];
+  newRumors?: Omit<RumorEntry, 'id'>[];
+  newMessages?: Omit<ContactMessage, 'id' | 'timestampReal' | 'read' | 'replied'>[];
   activePlotHooks?: string[];
+  // Prepared future fields (backward-compatible)
+  plotLeads?: PlotLead[];
+  rumors?: RumorEntry[];
+  messages?: ContactMessage[];
 };
 
 export type ActionRequest = {
@@ -240,6 +303,10 @@ export type ActionResponse = {
   updatedLocations?: LocationUpdate[];
   newAgendaEvents?: AgendaEvent[];
   updatedAgendaEvents?: AgendaEventUpdate[];
+  newPlotLeads?: Omit<PlotLead, 'id'>[];
+  updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];
+  newRumors?: Omit<RumorEntry, 'id'>[];
+  newMessages?: Omit<ContactMessage, 'id' | 'timestampReal' | 'read' | 'replied'>[];
   activePlotHooks?: string[];
   episodicMemory?: {
     id?: string;
@@ -280,6 +347,10 @@ export type OfflineRecapResponse = {
   updatedLocations?: LocationUpdate[];
   newAgendaEvents?: AgendaEvent[];
   updatedAgendaEvents?: AgendaEventUpdate[];
+  newPlotLeads?: Omit<PlotLead, 'id'>[];
+  updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];
+  newRumors?: Omit<RumorEntry, 'id'>[];
+  newMessages?: Omit<ContactMessage, 'id' | 'timestampReal' | 'read' | 'replied'>[];
   activePlotHooks?: string[];
   episodicMemory?: {
     id?: string;

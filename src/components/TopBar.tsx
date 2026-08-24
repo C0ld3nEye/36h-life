@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { 
   Battery, Coffee, Droplet, Clock, Settings, Calendar, 
   AlertTriangle, XCircle, ChevronRight, CheckCircle2, Sparkles,
-  ArrowRight
+  ArrowRight, Sun, Moon, Sunrise, Sunset, Info, X
 } from 'lucide-react';
 import { useGameStore } from '../state/useGameState';
 import { 
@@ -15,6 +15,7 @@ import {
   ImminentEvent
 } from '../lib/utils';
 import { api } from '../lib/api';
+import { getAtmosphereForHour } from '../lib/atmosphere';
 import { MindsetGauge } from './MindsetGauge';
 import { SettingsModal } from './SettingsModal';
 import { sendGameNotification } from '../lib/notifications';
@@ -31,6 +32,7 @@ export function TopBar({ onSleep, onNavigateToAgenda }: TopBarProps) {
   const [showAbortTaskModal, setShowAbortTaskModal] = useState(false);
   const [isAbortingTask, setIsAbortingTask] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAtmosphereModal, setShowAtmosphereModal] = useState(false);
   const isCompletingTaskRef = useRef(false);
 
   // Compute imminent calendar events (<= 3 game hours)
@@ -39,6 +41,7 @@ export function TopBar({ onSleep, onNavigateToAgenda }: TopBarProps) {
   }, [agenda, epochRealTime]);
 
   const nearestImminentEvent: ImminentEvent | null = imminentEvents.length > 0 ? imminentEvents[0] : null;
+  const atmosphere = useMemo(() => getAtmosphereForHour(dateInfo.gameHourOfDay), [dateInfo.gameHourOfDay]);
 
   const completeTask = useCallback((task: any) => {
     if (isCompletingTaskRef.current) return;
@@ -204,19 +207,32 @@ export function TopBar({ onSleep, onNavigateToAgenda }: TopBarProps) {
       {/* Main Status Bar */}
       <div className="w-full h-14 bg-slate-900/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between gap-3 border-b border-white/10 relative">
         {/* Left: Date, Time & Atmospheric Phase */}
-        <div className="flex flex-col shrink-0 justify-center min-w-0">
+        <button
+          type="button"
+          onClick={() => setShowAtmosphereModal(true)}
+          className="flex flex-col shrink-0 justify-center min-w-0 text-left hover:opacity-90 active:scale-95 transition-all cursor-pointer group"
+          title="Consulter l'ambiance et les détails du cycle de 36 heures"
+        >
           <div className="flex items-center gap-1.5 leading-none mb-1">
-            <span className="text-xs font-bold text-slate-100 tracking-tight">
+            <span className="text-xs font-bold text-slate-100 tracking-tight group-hover:text-sky-300 transition-colors">
               {dateInfo.dayName} {dateInfo.dateStr}
             </span>
-            <span className="text-[11px] font-bold text-sky-400 font-mono tracking-tight bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-400/30 shadow-sm">
+            <span className={cn(
+              "text-[11px] font-bold font-mono tracking-tight px-1.5 py-0.5 rounded border shadow-sm transition-colors",
+              atmosphere.ambientTone,
+              atmosphere.accentBorder,
+              "bg-slate-950/80"
+            )}>
               {dateInfo.timeStr}
             </span>
           </div>
-          <span className="text-[10px] font-semibold text-slate-400 leading-none">
-            {dateInfo.cyclePhase}
-          </span>
-        </div>
+          <div className="flex items-center gap-1.5">
+            <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", atmosphere.ambientTone.replace('text-', 'bg-'))} />
+            <span className="text-[10px] font-semibold text-slate-400 leading-none group-hover:text-slate-300">
+              {atmosphere.phaseName}
+            </span>
+          </div>
+        </button>
 
         {/* Center: Compact Mindset Gauge */}
         <div className="flex-1 min-w-0 mx-1 flex justify-center items-center">
@@ -416,6 +432,74 @@ export function TopBar({ onSleep, onNavigateToAgenda }: TopBarProps) {
         onClose={() => setShowSettingsModal(false)} 
         onSleep={onSleep} 
       />
+
+      {/* Atmospheric Cycle & Lighting Modal */}
+      {showAtmosphereModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className={cn(
+            "bg-slate-900/95 border rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 relative overflow-hidden",
+            atmosphere.accentBorder
+          )}>
+            {/* Background glow header */}
+            <div 
+              className="absolute -top-16 -right-16 w-36 h-36 rounded-full blur-3xl pointer-events-none opacity-50"
+              style={{ backgroundColor: atmosphere.glowColor }}
+            />
+
+            <div className="flex items-start justify-between gap-3 relative z-10">
+              <div className="flex items-center gap-2.5">
+                <div className={cn("p-2.5 rounded-2xl bg-slate-950 border", atmosphere.accentBorder)}>
+                  {atmosphere.key === 'aube' && <Sunrise className={cn("w-5 h-5", atmosphere.ambientTone)} />}
+                  {(atmosphere.key === 'matin' || atmosphere.key === 'zenith' || atmosphere.key === 'apres_midi') && <Sun className={cn("w-5 h-5", atmosphere.ambientTone)} />}
+                  {atmosphere.key === 'crepuscule' && <Sunset className={cn("w-5 h-5", atmosphere.ambientTone)} />}
+                  {atmosphere.key === 'nuit' && <Moon className={cn("w-5 h-5", atmosphere.ambientTone)} />}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 leading-tight flex items-center gap-1.5">
+                    {atmosphere.phaseName}
+                  </h3>
+                  <p className={cn("text-xs font-medium", atmosphere.ambientTone)}>
+                    {dateInfo.timeStr} • {atmosphere.subtext}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAtmosphereModal(false)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Fermer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-white/5 text-xs text-slate-300 leading-relaxed font-serif relative z-10">
+              {atmosphere.lightingDescription}
+            </div>
+
+            <div className="space-y-2 relative z-10 text-[11px] text-slate-400">
+              <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-slate-950/40 border border-white/5">
+                <span>Calendrier</span>
+                <span className="font-semibold text-slate-200">{dateInfo.dayName} {dateInfo.dateStr}</span>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-slate-950/40 border border-white/5">
+                <span>Rythme planétaire</span>
+                <span className="font-semibold text-sky-400">Cycle solaire de 36 heures</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAtmosphereModal(false)}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-white/10 transition-colors cursor-pointer"
+            >
+              Compris
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -55,6 +55,8 @@ function computeStateSignature(state: any): string {
   const lastAgenda = agendaCount > 0 ? state.agenda[agendaCount - 1]?.id || '' : '';
   const charsCount = state.characters ? Object.keys(state.characters).length : 0;
   const locsCount = state.locations ? Object.keys(state.locations).length : 0;
+  const plotCount = Array.isArray(state.plotLeads) ? state.plotLeads.length : 0;
+  const msgCount = Array.isArray(state.messages) ? state.messages.length : 0;
   const checking = state.bank?.checking ?? 0;
   const savings = state.bank?.savings ?? 0;
   const debts = state.bank?.debts ?? 0;
@@ -62,7 +64,7 @@ function computeStateSignature(state: any): string {
   const currentTask = state.currentTask ? `${state.currentTask.description}_${state.currentTask.endTimeReal}` : 'none';
   const lastUpdate = state.lastUpdateTime || 0;
   
-  return `${narrativeCount}|${lastNarrative}|${diaryCount}|${lastDiary}|${agendaCount}|${lastAgenda}|${charsCount}|${locsCount}|${checking}|${savings}|${debts}|${txCount}|${currentTask}|${lastUpdate}`;
+  return `${narrativeCount}|${lastNarrative}|${diaryCount}|${lastDiary}|${agendaCount}|${lastAgenda}|${charsCount}|${locsCount}|${plotCount}|${msgCount}|${checking}|${savings}|${debts}|${txCount}|${currentTask}|${lastUpdate}`;
 }
 
 let saveTimeout: any = null;
@@ -157,8 +159,8 @@ export function triggerCloudSave(state: any, immediate = false) {
   if (immediate) {
     performWrite();
   } else {
-    // Debounce by 1500ms to batch rapid sequential actions
-    saveTimeout = setTimeout(performWrite, 1500);
+    // Debounce by 2500ms to batch rapid sequential actions and conserve Firestore quotas
+    saveTimeout = setTimeout(performWrite, 2500);
   }
 }
 

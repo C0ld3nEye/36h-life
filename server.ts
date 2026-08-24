@@ -929,6 +929,47 @@ const actionResponseSchema: Schema = {
       items: { type: Type.STRING },
       description: "List of 2 to 4 active forward-looking plot hooks or background threads to maintain continuous narrative momentum (e.g. 'Entretien d'embauche imminent', 'Rumeurs sur les coupures nocturnes')."
     },
+    newPlotLeads: {
+      type: Type.ARRAY,
+      items: { type: Type.OBJECT, properties: {
+        title: { type: Type.STRING },
+        category: { type: Type.STRING, enum: ["emploi", "mystere", "quartier", "personnel", "finance"] },
+        status: { type: Type.STRING, enum: ["actif", "en_pause", "resolu"] },
+        qualitativeStage: { type: Type.STRING },
+        clues: { type: Type.ARRAY, items: { type: Type.STRING } },
+        relatedCharacterIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+        relatedLocationIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+        notes: { type: Type.STRING }
+      }}
+    },
+    updatedPlotLeads: {
+      type: Type.ARRAY,
+      items: { type: Type.OBJECT, properties: {
+        id: { type: Type.STRING },
+        qualitativeStage: { type: Type.STRING },
+        newClues: { type: Type.ARRAY, items: { type: Type.STRING } },
+        status: { type: Type.STRING, enum: ["actif", "en_pause", "resolu"] }
+      }}
+    },
+    newRumors: {
+      type: Type.ARRAY,
+      items: { type: Type.OBJECT, properties: {
+        text: { type: Type.STRING },
+        source: { type: Type.STRING },
+        credibility: { type: Type.STRING, enum: ["faible", "plausible", "averee"] },
+        district: { type: Type.STRING }
+      }}
+    },
+    newMessages: {
+      type: Type.ARRAY,
+      items: { type: Type.OBJECT, properties: {
+        senderId: { type: Type.STRING, description: "ID of the character or system" },
+        senderName: { type: Type.STRING },
+        preview: { type: Type.STRING },
+        content: { type: Type.STRING },
+        replyOptions: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }}
+    },
     episodicMemory: {
       type: Type.OBJECT,
       properties: {
@@ -1185,6 +1226,11 @@ ${agendaPriorityInstruction}
 
 📅 FORMAT DES DATES POUR L'AGENDA ('newAgendaEvents.dateGameStr') :
 - Renseigne TOUJOURS une date précise avec jour de la semaine, date calendaire (ex: "Mardi 02/01/2100 à 14:00", "Mercredi 03/01/2100 à 09:30", "Lundi 08/01/2100 à 10:00") ou une échéance claire ("Tous les lundis à 08:00").
+
+📅 NOUVELLES FONCTIONNALITÉS ARCHIVISTES (INTÉGRATION DES INTRIGUES, RUMEURS ET MESSAGES) :
+- Tu PEUX et DOIS générer ou mettre à jour des Pistes (newPlotLeads, updatedPlotLeads) si le joueur découvre un mystère, une offre d'emploi, ou débute une quête.
+- Tu PEUX générer de nouvelles Rumeurs Urbaines (newRumors) si le joueur écoute aux portes, traîne dans un bar, ou capte des bruits de couloir.
+- Tu PEUX simuler la réception de messages asynchrones (newMessages) provenant des PNJ connus sur le communicateur du joueur. Fais-le naturellement pour relancer l'intrigue.
 
 ⚠️ RÈGLES DE COHÉRENCE TEMPORELLE ABSOLUE & RESPECT DU TEMPS RÉEL (CYCLE DE 36 HEURES) :
 1. ⏳ LE JEU S'ÉCOULE EN TEMPS RÉEL (1 MINUTE RÉELLE = 1 MINUTE IN-GAME) :

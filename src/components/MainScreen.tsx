@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { Send, AlertOctagon, X, Sparkles, Clock } from 'lucide-react';
 import { useGameStore } from '../state/useGameState';
 import { api } from '../lib/api';
@@ -14,7 +14,6 @@ function formatNarrativeMessage(rawContent: any): string {
     .replace(/^\[RÉCAPITULATIF HORS-LIGNE\]\n?/, '')
     .replace(/^\[TÂCHE EN COURS[^\n]*\]\n?/, '');
 
-  // Sanitize legacy or corrupted JSON key-value leaks if present
   if (text.includes('narrative :') || text.includes('"narrative":') || text.includes('isDangerous :')) {
     const narrativeMatch = text.match(/(?:narrative\s*:\s*|"narrative"\s*:\s*)(.+?)(?:,\s*(?:choices|newAgendaEvents|newCharacters|newLocations|vitalsImpact|moneyImpact|skillsImpact|isDangerous|dangerWarning)\s*:|$)/s);
     if (narrativeMatch && narrativeMatch[1]) {
@@ -27,6 +26,47 @@ function formatNarrativeMessage(rawContent: any): string {
 
   return text.trim();
 }
+
+const NarrativeMessage = memo(({ msg, index }: { msg: any; index: number }) => {
+  if (!msg) return null;
+  const raw = msg.content as any;
+  const msgContent = typeof raw === 'string'
+    ? raw
+    : (raw?.text || raw?.narrative || (typeof raw === 'object' ? JSON.stringify(raw) : String(raw || '')));
+    
+  const isOfflineRecap = msg.role === 'model' && msgContent.startsWith('[RÉCAPITULATIF');
+  const isTaskProgress = msg.role === 'model' && msgContent.startsWith('[TÂCHE EN COURS');
+  const cleanContent = formatNarrativeMessage(msgContent);
+
+  return (
+    <div className={cn(
+      "flex w-full",
+      msg.role === 'user' ? "justify-end" : "justify-start"
+    )}>
+      <div className={cn(
+        "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm text-[15px] leading-relaxed",
+        msg.role === 'user' 
+          ? "bg-sky-600 text-white rounded-br-sm" 
+          : isTaskProgress
+            ? "bg-slate-900/90 border border-amber-500/20 text-slate-200 rounded-bl-sm font-serif shadow-amber-950/20"
+            : "glass-panel text-slate-200 rounded-bl-sm font-serif"
+      )}>
+        {isOfflineRecap && (
+          <div className="flex items-center gap-2 mb-2 text-sky-400 font-semibold text-xs tracking-wider font-sans">
+            <Sparkles className="w-4 h-4" /> RÉVEIL & RETOUR
+          </div>
+        )}
+        {isTaskProgress && (
+          <div className="flex items-center gap-2 mb-2 text-amber-400 font-semibold text-xs tracking-wider font-sans">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{msgContent.split('\n')[0].replace('[', '').replace(']', '')}</span>
+          </div>
+        )}
+        {cleanContent}
+      </div>
+    </div>
+  );
+});
 
 export function MainScreen() {
   const narrativeHistory = useGameStore(state => state.narrativeHistory || []);
@@ -103,46 +143,9 @@ export function MainScreen() {
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 narrative-feed overscroll-contain touch-pan-y"
       >
-        {narrativeHistory.map((msg, i) => {
-          if (!msg) return null;
-          const raw = msg.content as any;
-          const msgContent = typeof raw === 'string'
-            ? raw
-            : (raw?.text || raw?.narrative || (typeof raw === 'object' ? JSON.stringify(raw) : String(raw || '')));
-            
-          const isOfflineRecap = msg.role === 'model' && msgContent.startsWith('[RÉCAPITULATIF');
-          const isTaskProgress = msg.role === 'model' && msgContent.startsWith('[TÂCHE EN COURS');
-          const cleanContent = formatNarrativeMessage(msgContent);
-
-          return (
-            <div key={i} className={cn(
-              "flex w-full",
-              msg.role === 'user' ? "justify-end" : "justify-start"
-            )}>
-              <div className={cn(
-                "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm text-[15px] leading-relaxed",
-                msg.role === 'user' 
-                  ? "bg-sky-600 text-white rounded-br-sm" 
-                  : isTaskProgress
-                    ? "bg-slate-900/90 border border-amber-500/20 text-slate-200 rounded-bl-sm font-serif shadow-amber-950/20"
-                    : "glass-panel text-slate-200 rounded-bl-sm font-serif"
-              )}>
-                {isOfflineRecap && (
-                  <div className="flex items-center gap-2 mb-2 text-sky-400 font-semibold text-xs tracking-wider font-sans">
-                    <Sparkles className="w-4 h-4" /> RÉVEIL & RETOUR
-                  </div>
-                )}
-                {isTaskProgress && (
-                  <div className="flex items-center gap-2 mb-2 text-amber-400 font-semibold text-xs tracking-wider font-sans">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{msgContent.split('\n')[0].replace('[', '').replace(']', '')}</span>
-                  </div>
-                )}
-                {cleanContent}
-              </div>
-            </div>
-          );
-        })}
+        {narrativeHistory.map((msg, i) => (
+          <NarrativeMessage key={i} msg={msg} index={i} />
+        ))}
         {loading && (
           <div className="flex justify-start w-full">
             <div className="glass-panel rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-2">
