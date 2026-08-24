@@ -9,6 +9,8 @@ import { FoldersScreen } from './components/FoldersScreen';
 import { AgendaScreen } from './components/AgendaScreen';
 import { BankScreen } from './components/BankScreen';
 import { SleepModal } from './components/SleepModal';
+import { EpilogueModal } from './components/EpilogueModal';
+import { soundEngine } from './lib/audio';
 import { useGameStore } from './state/useGameState';
 import { api } from './lib/api';
 import { loadGameStateFromIDB } from './lib/dbPersistence';
@@ -240,49 +242,10 @@ export default function App() {
                 autopilotMode
               });
 
-              if (res.vitalsImpact) state.updateVitals(res.vitalsImpact);
-              if (res.moneyImpact) state.updateMoney(res.moneyImpact, res.moneyImpact.reason);
-              if (res.inventoryUpdates && res.inventoryUpdates.length > 0) {
-                useGameStore.getState().applyInventoryUpdates(res.inventoryUpdates);
-              }
-              if (res.skillsImpact && res.skillsImpact.length > 0) {
-                const skills = { ...useGameStore.getState().skills };
-                res.skillsImpact.forEach(si => {
-                  if (skills[si.name]) {
-                    skills[si.name].practicePoints = Math.max(0, skills[si.name].practicePoints + si.practicePointsDelta);
-                  }
-                });
-                useGameStore.setState({ skills });
-              }
-              if (res.narrativeRecap) addOfflineRecap(res.narrativeRecap, res.events, res.diaryEntry);
-              if (res.choices) useGameStore.setState({ choices: res.choices });
-              if (res.newCharacters && res.newCharacters.length > 0) {
-                const chars = { ...useGameStore.getState().characters };
-                res.newCharacters.forEach(c => chars[c.id] = c);
-                useGameStore.setState({ characters: chars });
-              }
-              if (res.updatedCharacters && res.updatedCharacters.length > 0) {
-                const chars = { ...useGameStore.getState().characters };
-                res.updatedCharacters.forEach(uc => {
-                  if (chars[uc.id]) {
-                    chars[uc.id] = {
-                      ...chars[uc.id],
-                      ...(uc.relationshipStatus ? { relationshipStatus: uc.relationshipStatus } : {}),
-                      ...(uc.financialRelation ? { financialRelation: uc.financialRelation } : {}),
-                      ...(uc.notesAppend ? { notes: (chars[uc.id].notes ? `${chars[uc.id].notes}\n` : '') + uc.notesAppend } : {})
-                    };
-                  }
-                });
-                useGameStore.setState({ characters: chars });
-              }
-              if (res.newLocations && res.newLocations.length > 0) {
-                const locs = { ...useGameStore.getState().locations };
-                res.newLocations.forEach(l => locs[l.id] = l);
-                useGameStore.setState({ locations: locs });
-              }
-              if (res.newAgendaEvents && res.newAgendaEvents.length > 0) {
-                res.newAgendaEvents.forEach(ae => useGameStore.getState().addAgendaEvent(ae));
-              }
+              useGameStore.getState().dispatchGameAction({
+                type: 'PROCESS_OFFLINE_RECAP',
+                payload: res
+              });
             } catch (err) {
               console.error("Failed to fetch offline task completion recap", err);
             } finally {
@@ -298,49 +261,10 @@ export default function App() {
               autopilotMode
             });
             
-            if (res.vitalsImpact) state.updateVitals(res.vitalsImpact);
-            if (res.moneyImpact) state.updateMoney(res.moneyImpact, res.moneyImpact.reason);
-            if (res.inventoryUpdates && res.inventoryUpdates.length > 0) {
-              useGameStore.getState().applyInventoryUpdates(res.inventoryUpdates);
-            }
-            if (res.skillsImpact && res.skillsImpact.length > 0) {
-              const skills = { ...useGameStore.getState().skills };
-              res.skillsImpact.forEach(si => {
-                if (skills[si.name]) {
-                  skills[si.name].practicePoints = Math.max(0, skills[si.name].practicePoints + si.practicePointsDelta);
-                }
-              });
-              useGameStore.setState({ skills });
-            }
-            if (res.narrativeRecap) addOfflineRecap(res.narrativeRecap, res.events, res.diaryEntry);
-            if (res.choices) useGameStore.setState({ choices: res.choices });
-            if (res.newCharacters && res.newCharacters.length > 0) {
-              const chars = { ...useGameStore.getState().characters };
-              res.newCharacters.forEach(c => chars[c.id] = c);
-              useGameStore.setState({ characters: chars });
-            }
-            if (res.updatedCharacters && res.updatedCharacters.length > 0) {
-              const chars = { ...useGameStore.getState().characters };
-              res.updatedCharacters.forEach(uc => {
-                if (chars[uc.id]) {
-                  chars[uc.id] = {
-                    ...chars[uc.id],
-                    ...(uc.relationshipStatus ? { relationshipStatus: uc.relationshipStatus } : {}),
-                    ...(uc.financialRelation ? { financialRelation: uc.financialRelation } : {}),
-                    ...(uc.notesAppend ? { notes: (chars[uc.id].notes ? `${chars[uc.id].notes}\n` : '') + uc.notesAppend } : {})
-                  };
-                }
-              });
-              useGameStore.setState({ characters: chars });
-            }
-            if (res.newLocations && res.newLocations.length > 0) {
-              const locs = { ...useGameStore.getState().locations };
-              res.newLocations.forEach(l => locs[l.id] = l);
-              useGameStore.setState({ locations: locs });
-            }
-            if (res.newAgendaEvents && res.newAgendaEvents.length > 0) {
-              res.newAgendaEvents.forEach(ae => useGameStore.getState().addAgendaEvent(ae));
-            }
+            useGameStore.getState().dispatchGameAction({
+              type: 'PROCESS_OFFLINE_RECAP',
+              payload: res
+            });
           } catch (err) {
             console.error("Failed to fetch offline recap", err);
           } finally {
@@ -417,6 +341,8 @@ export default function App() {
             onSleep={() => setShowSleepModal(false)}
           />
         )}
+
+        <EpilogueModal />
       </div>
     </div>
   );

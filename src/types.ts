@@ -251,6 +251,46 @@ export type ContactMessage = {
   replyOptions?: string[]; // Qualitative quick responses the player can choose
 };
 
+export type GameStatus = 'active' | 'victory' | 'timeout' | 'breakdown';
+
+export type GameAction =
+  | { type: 'PROCESS_ACTION_RESPONSE'; payload: ActionResponse }
+  | { type: 'PROCESS_OFFLINE_RECAP'; payload: OfflineRecapResponse }
+  | { type: 'CONSUME_ITEM'; payload: { itemId: string; quantity?: number } }
+  | { type: 'MOVE_ITEM'; payload: { itemId: string; targetLocation: 'personnage' | 'appartement' } }
+  | { type: 'DELETE_ITEM'; payload: { itemId: string } }
+  | { type: 'TRANSFER_MONEY'; payload: { from: 'checking' | 'savings'; to: 'checking' | 'savings' | 'debts'; amount: number } }
+  | { type: 'TAKE_LOAN'; payload: { amount: number } }
+  | { type: 'ADVANCE_TIME'; payload: { minutes: number; reason?: string } }
+  | { type: 'SET_CURRENT_LOCATION'; payload: { locationId: string } }
+  | { type: 'UPDATE_CHARACTER_NOTES'; payload: { characterId: string; notes: string } }
+  | { type: 'UPDATE_LOCATION_NOTES'; payload: { locationId: string; notes: string } }
+  | { type: 'DELETE_CHARACTER'; payload: { characterId: string } }
+  | { type: 'DELETE_LOCATION'; payload: { locationId: string } }
+  | { type: 'UPDATE_CHARACTER_IMAGE'; payload: { characterId: string; imageUrl?: string } }
+  | { type: 'UPDATE_LOCATION_IMAGE'; payload: { locationId: string; imageUrl?: string } }
+  | { type: 'ADD_DIARY_ENTRY'; payload: Omit<DiaryEntry, 'id'> }
+  | { type: 'UPDATE_DIARY_ENTRY'; payload: { id: string; updates: Partial<DiaryEntry> } }
+  | { type: 'DELETE_DIARY_ENTRY'; payload: { id: string } }
+  | { type: 'ADD_AGENDA_EVENT'; payload: Omit<AgendaEvent, 'id' | 'createdAtGameDate'> }
+  | { type: 'UPDATE_AGENDA_EVENT'; payload: { id: string; updates: Partial<AgendaEvent> } }
+  | { type: 'DELETE_AGENDA_EVENT'; payload: { id: string } }
+  | { type: 'TOGGLE_AGENDA_EVENT'; payload: { id: string } }
+  | { type: 'ADD_PLOT_LEAD'; payload: Omit<PlotLead, 'id'> }
+  | { type: 'UPDATE_PLOT_LEAD'; payload: { id: string; updates: Partial<PlotLead> } }
+  | { type: 'DELETE_PLOT_LEAD'; payload: { id: string } }
+  | { type: 'ADD_PLOT_LEAD_CLUE'; payload: { id: string; clue: string } }
+  | { type: 'ADD_RUMOR'; payload: Omit<RumorEntry, 'id'> }
+  | { type: 'DELETE_RUMOR'; payload: { id: string } }
+  | { type: 'ADD_MESSAGE'; payload: Omit<ContactMessage, 'id'> }
+  | { type: 'MARK_MESSAGE_READ'; payload: { id: string } }
+  | { type: 'REPLY_MESSAGE'; payload: { id: string; replyText: string } }
+  | { type: 'DELETE_MESSAGE'; payload: { id: string } }
+  | { type: 'SET_AUTOPILOT_MODE'; payload: { mode: GameState['autopilotMode'] } }
+  | { type: 'SET_TASK'; payload: { task: Task | null } }
+  | { type: 'CANCEL_TASK'; payload?: { reason?: string } }
+  | { type: 'ADD_NARRATIVE'; payload: { role: 'user' | 'model'; content: string } };
+
 export type GameState = {
   epochRealTime: number; // When the game started in real world time
   vitals: Vitals;
@@ -267,6 +307,8 @@ export type GameState = {
   autopilotMode: 'prudent' | 'curieux' | 'normal';
   choices: string[];
   lastUpdateTime: number;
+  gameStatus?: GameStatus;
+  epilogueSummary?: string;
   narrativeArcs?: string[];
   newPlotLeads?: Omit<PlotLead, 'id'>[];
   updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];

@@ -1,4 +1,7 @@
-import { GameState, ActionResponse, InventoryItem, InventoryUpdate, CharacterProfile, LocationProfile } from '../types';
+import { 
+  GameState, ActionResponse, InventoryItem, 
+  InventoryUpdate, GameStatus, GameAction 
+} from '../types';
 
 export interface ValidatedRuleOutcome {
   validatedResponse: ActionResponse;
@@ -11,26 +14,45 @@ export interface ValidatedRuleOutcome {
 
 /**
  * Deterministic Rules Engine (Moteur de règles déterministe)
- * Validates any unstructured or structured payload from the LLM or client
- * before state is altered.
- * 
- * Rules enforced:
- * 1. Financial:
- *    - Checking account cannot overdraft below authorized limit (-100€) without explicit debt transaction.
- *    - Negative checking deltas without sufficient balance are automatically redirected or capped with a log.
- * 2. Inventory:
- *    - Negative quantity deltas (consuming/removing) can ONLY target items that exist in player inventory or apartment.
- *    - Quantity removed is bounded by actual quantity held (no negative phantom quantities).
- *    - Positive quantity additions are sanitized and clamped.
- * 3. Vitals & Mindset:
- *    - Mindset changes are clamped to realistic per-turn limits [-25, +25].
- *    - Total vitals (energy, hunger, hygiene, mood, mindset) are strictly clamped in [0, 100].
- * 4. Spatio-Temporal & Entity Consistency:
- *    - Deduplicates characters and locations by ID or normalized name.
- *    - Enforces duration bounds (1 to 480 minutes max).
+ * Centralizes all validation, precondition checks, and game status transitions.
  */
 export class DeterministicRulesEngine {
   
+  /**
+   * Evaluates the global game status: 'active' | 'victory' | 'timeout' | 'breakdown'
+   */
+  public static evaluateGameStatus(state: GameState): { status: GameStatus; reason?: string } {
+    const now = Date.now();
+    const elapsedRealMs = now - (state.epochRealTime || now);
+    const elapsedGameHours = elapsedRealMs / (60 * 60 * 1000); // In our real-time scale, 1 real hr = 1 game hr (or scaled)
+
+    // 1. Mental or physical breakdown (vital collapse)
+    if ((state.vitals.mindset !== undefined && state.vitals.mindset <= 0) || 
+        (state.vitals.energy <= 0 && state.vitals.hunger <= 0)) {
+      return {
+        status: 'breakdown',
+        reason: "Épuisement total. Votre équilibre mental et physique a atteint un seuil critique. Vous devez impérativement vous reposer et reprendre des forces."
+      };
+    }
+
+    // 2. 36h cycle completion
+    if (elapsedGameHours >= 36) {
+      if (state.vitals.mindset >= 35 && state.vitals.energy >= 15 && state.bank.checking >= 0) {
+        return {
+          status: 'victory',
+          reason: "Cycle de 36 heures accompli avec succès ! Vous avez su préserver votre stabilité financière, maintenir votre lucidité et tisser des liens solides dans la cité."
+        };
+      } else {
+        return {
+          status: 'timeout',
+          reason: "Le cycle de 36 heures est arrivé à son terme. Bien que le rythme fut éprouvant, vous avez franchi ce cap d'acclimatation."
+        };
+      }
+    }
+
+    return { status: 'active' };
+  }
+
   /**
    * Validates and sanitizes an action response against current state.
    */
@@ -44,7 +66,6 @@ export class DeterministicRulesEngine {
     if (raw.moneyImpact) {
       const checkingDelta = raw.moneyImpact.checkingDelta ?? 0;
       const savingsDelta = raw.moneyImpact.savingsDelta ?? 0;
-      const debtsDelta = raw.moneyImpact.debtsDelta ?? 0;
 
       const currentChecking = currentState.bank?.checking ?? 0;
       const currentSavings = currentState.bank?.savings ?? 0;
@@ -53,12 +74,10 @@ export class DeterministicRulesEngine {
       if (checkingDelta < 0 && (currentChecking + checkingDelta < -100)) {
         violations.push(`Fonds insuffisants sur le compte courant (${currentChecking}€) pour débiter ${Math.abs(checkingDelta)}€.`);
         
-        // Auto-correction: if player has savings, suggest or reject
         if (currentSavings >= Math.abs(checkingDelta)) {
           violations.push(`Le montant de ${Math.abs(checkingDelta)}€ nécessite un virement depuis le livret d'épargne.`);
         }
         
-        // Cap debit to available limit
         const maxSpendable = Math.max(0, currentChecking + 100);
         if (maxSpendable > 0) {
           validated.moneyImpact = {
@@ -68,13 +87,11 @@ export class DeterministicRulesEngine {
           };
           autoCorrected = true;
         } else {
-          // Reject transaction
           validated.moneyImpact = undefined;
           moneyChangesAllowed = false;
         }
       }
 
-      // Savings withdrawal check
       if (savingsDelta < 0 && (currentSavings + savingsDelta < 0)) {
         violations.push(`Solde insuffisant sur le livret d'épargne (${currentSavings}€) pour débiter ${Math.abs(savingsDelta)}€.`);
         validated.moneyImpact = {
@@ -100,11 +117,9 @@ export class DeterministicRulesEngine {
         );
 
         if (update.quantityDelta < 0) {
-          // Negative quantity: verify item actually exists in storage
           if (!existingItem) {
             violations.push(`Tentative de retrait de l'objet "${update.name}" non présent dans l'inventaire.`);
             autoCorrected = true;
-            // Reject this invalid subtraction
             continue;
           }
 
@@ -122,7 +137,6 @@ export class DeterministicRulesEngine {
             sanitizedUpdates.push(update);
           }
         } else if (update.quantityDelta > 0) {
-          // Positive quantity: sanitize payload
           sanitizedUpdates.push({
             id: update.id || `item-${Date.now()}-${Math.random().toString(36).substring(7)}`,
             name: update.name.trim(),
@@ -142,10 +156,8 @@ export class DeterministicRulesEngine {
     // --- 3. VITALS & MINDSET RULE VALIDATION ---
     let vitalsChangesAllowed = true;
     if (raw.vitalsImpact) {
-      const currentVitals = currentState.vitals;
       const sanitizedVitals = { ...raw.vitalsImpact };
 
-      // Clamp individual delta spikes to realistic boundaries
       if (sanitizedVitals.mindset !== undefined) {
         sanitizedVitals.mindset = Math.max(-25, Math.min(25, sanitizedVitals.mindset));
       }
@@ -170,7 +182,6 @@ export class DeterministicRulesEngine {
       if (raw.durationMinutes <= 0) {
         validated.durationMinutes = undefined;
       } else {
-        // Clamp to max 480 minutes (8 hours) per continuous task
         validated.durationMinutes = Math.min(480, Math.max(1, Math.round(raw.durationMinutes)));
       }
     }
@@ -200,7 +211,7 @@ export class DeterministicRulesEngine {
   }
 
   /**
-   * Validates a direct player item consumption action.
+   * Validates item consumption.
    */
   public static validateConsumption(
     inventory: InventoryItem[],
@@ -219,7 +230,7 @@ export class DeterministicRulesEngine {
   }
 
   /**
-   * Validates a bank transfer request.
+   * Validates bank transfer.
    */
   public static validateTransfer(
     bank: GameState['bank'],
@@ -240,5 +251,52 @@ export class DeterministicRulesEngine {
       return { valid: false, error: `Solde insuffisant sur le livret d'épargne (${bank.savings} € disponible).` };
     }
     return { valid: true };
+  }
+
+  /**
+   * Validates loan request.
+   */
+  public static validateLoan(
+    bank: GameState['bank'],
+    amount: number
+  ): { valid: boolean; error?: string } {
+    if (amount <= 0 || isNaN(amount)) {
+      return { valid: false, error: "Le montant du crédit doit être supérieur à 0 €." };
+    }
+    if (amount > 10000) {
+      return { valid: false, error: "Le montant maximal d'emprunt accordé par la banque est de 10 000 €." };
+    }
+    if (bank.debts + amount > 25000) {
+      return { valid: false, error: "Capacité d'endettement maximale atteinte (limite globale : 25 000 €)." };
+    }
+    return { valid: true };
+  }
+
+  /**
+   * Validates time advancement and calculates vital drains.
+   */
+  public static validateTimeAdvance(
+    state: GameState,
+    minutes: number
+  ): { valid: boolean; minutes: number; vitalDrain: Partial<GameState['vitals']>; error?: string } {
+    if (minutes <= 0 || isNaN(minutes)) {
+      return { valid: false, minutes: 0, vitalDrain: {}, error: "La durée d'avancement doit être positive." };
+    }
+    const clampedMinutes = Math.min(1440, Math.max(1, Math.round(minutes)));
+    const hours = clampedMinutes / 60;
+
+    const energyDrain = Math.round(hours * 2.5 * 10) / 10;
+    const hungerDrain = Math.round(hours * 4.0 * 10) / 10;
+    const hygieneDrain = Math.round(hours * 1.5 * 10) / 10;
+
+    return {
+      valid: true,
+      minutes: clampedMinutes,
+      vitalDrain: {
+        energy: -energyDrain,
+        hunger: -hungerDrain,
+        hygiene: -hygieneDrain
+      }
+    };
   }
 }

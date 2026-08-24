@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { 
   GameState, ActionResponse, Task,
-  PlotLead, RumorEntry, ContactMessage 
+  PlotLead, RumorEntry, ContactMessage,
+  GameAction, InventoryUpdate
 } from '../types';
 import { resetCloudAndLocalData } from '../lib/cloudSync';
 import { DeterministicRulesEngine } from '../engine/rulesEngine';
@@ -17,12 +18,15 @@ export const GAME_TIME_MULTIPLIER = 1;
 export interface GameStore extends TimeSlice, InventorySlice, MentalSlice, BankSlice, WorldSlice {
   loadState: (state: Partial<GameState>) => void;
   resetGame: () => Promise<void>;
+  dispatchGameAction: (action: GameAction) => { success: boolean; error?: string };
   processActionResponse: (res: ActionResponse) => void;
   tick: () => void;
 }
 
 export const INITIAL_STATE: GameState = {
   epochRealTime: Date.now(),
+  gameStatus: 'active',
+  epilogueSummary: undefined,
   vitals: {
     energy: 100,
     hunger: 100,
@@ -180,21 +184,18 @@ export const INITIAL_STATE: GameState = {
       planetOrSystem: 'Terre (Système Solaire)',
       city: 'Néo-Paris',
       district: 'Quartier Résidentiel Saint-Michel',
-      description: 'Un studio modeste mais chaleureux et fonctionnel situé au 3ème étage d\'un immeuble d\'habitation. Il comprend un coin nuit douillet, une kitchenette intégrée, une salle d\'eau privative et un bureau équipé d\'un terminal informatique connecté.',
-      keyFeatures: ['Lit 2 places', 'Kitchenette & Frigo', 'Bureau & Terminal réseau', 'Douche privative'],
+      description: 'Un studio lumineux de 28m² sous les toits, avec une kitchenette bien équipée, un coin salon-bureau, une salle d\'eau et un lit douillet près de la baie vitrée.',
+      keyFeatures: ['Kitchenette fonctionnelle', 'Bureau de travail & terminal', 'Lit confortable', 'Salle de bain avec douche'],
       associatedCharacters: ['char-leo'],
-      notes: 'Mon domicile principal et mon havre de paix.',
+      notes: 'Votre havre de paix. Vous pouvez vous y reposer, cuisiner et planifier vos journées.',
       discoveredGameDate: Date.now(),
       isCurrentLocation: true,
       accessLevel: 'libre',
-      transitRoutes: [
-        { mode: 'a_pied', label: 'Descente dans la rue Saint-Michel', durationGameMinutes: 5, costCredits: 0, description: 'Descendre par la cage d\'escalier vers la rue piétonne animée.' },
-        { mode: 'monorail', label: 'Station Monorail Saint-Michel', durationGameMinutes: 8, costCredits: 2, description: 'Ligne 4 Urbaine vers le centre et les quais.' }
-      ]
+      transitRoutes: []
     },
     'loc-cafe-lumina': {
       id: 'loc-cafe-lumina',
-      name: 'Bistro & Café Néo-Lumina',
+      name: 'Bistro & Terrasse Néo-Lumina',
       category: 'commerce',
       planetOrSystem: 'Terre (Système Solaire)',
       city: 'Néo-Paris',
@@ -421,12 +422,373 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
   ...createBankSlice(set, get, api),
   ...createWorldSlice(set, get, api),
 
+  /**
+   * Centralized State Dispatcher (Unique Point of Entry for State Mutations)
+   * Validates all preconditions and rules before altering bank, inventory, time, vitals, or world state.
+   */
+  dispatchGameAction: (action: GameAction) => {
+    const currentState = get();
+
+    // Block mutations if game has ended
+    if (currentState.gameStatus && currentState.gameStatus !== 'active' && action.type !== 'ADD_NARRATIVE') {
+      return { success: false, error: "Le cycle de jeu est terminé." };
+    }
+
+    switch (action.type) {
+      case 'PROCESS_ACTION_RESPONSE': {
+        get().processActionResponse(action.payload);
+        return { success: true };
+      }
+
+      case 'PROCESS_OFFLINE_RECAP': {
+        const recap = action.payload;
+        const state = get();
+        const newDiaryEntries = [...state.diary];
+
+        if (recap.diaryEntry && recap.diaryEntry.content) {
+          newDiaryEntries.push({
+            id: `diary-${Math.random().toString(36).substring(7)}`,
+            gameDate: Date.now(),
+            title: recap.diaryEntry.title || "Chronique d'absence & Retour",
+            content: recap.diaryEntry.content,
+            category: recap.diaryEntry.category || 'absence',
+            mood: recap.diaryEntry.mood || 'Reposé & Serein',
+            milestone: recap.diaryEntry.milestone || false,
+            isPersonal: false
+          });
+        } else if (recap.events && recap.events.length > 0) {
+          newDiaryEntries.push({
+            id: `diary-${Math.random().toString(36).substring(7)}`,
+            gameDate: Date.now(),
+            title: "Chronique d'absence",
+            content: `Faits survenus durant la période hors-ligne :\n${recap.events.map(e => `• ${e}`).join('\n')}`,
+            category: 'absence',
+            mood: 'Reposé',
+            milestone: false,
+            isPersonal: false
+          });
+        }
+
+        const narrativeRecap = recap.narrativeRecap || "Pendant votre absence, la cité a continué de vivre.";
+        set({
+          diary: newDiaryEntries,
+          narrativeHistory: [
+            ...state.narrativeHistory,
+            { role: 'model', content: `[RÉCAPITULATIF HORS-LIGNE]\n${narrativeRecap}`, timestamp: Date.now() }
+          ],
+          choices: sanitizeChoices(recap.choices || state.choices),
+          lastUpdateTime: Date.now()
+        });
+
+        if (recap.vitalsImpact) {
+          get().updateVitals(recap.vitalsImpact);
+        }
+        if (recap.inventoryUpdates && recap.inventoryUpdates.length > 0) {
+          recap.inventoryUpdates.forEach(up => {
+            get().dispatchGameAction({
+              type: 'MOVE_ITEM',
+              payload: { itemId: up.id || '', targetLocation: up.location || 'personnage' }
+            });
+          });
+        }
+
+        // Evaluate game status after recap
+        const statusEval = DeterministicRulesEngine.evaluateGameStatus(get());
+        if (statusEval.status !== 'active') {
+          set({ gameStatus: statusEval.status, epilogueSummary: statusEval.reason });
+        }
+
+        return { success: true };
+      }
+
+      case 'TRANSFER_MONEY': {
+        const { from, to, amount } = action.payload;
+        const validation = DeterministicRulesEngine.validateTransfer(currentState.bank, from, to, amount);
+        if (!validation.valid) {
+          return { success: false, error: validation.error };
+        }
+
+        const now = Date.now();
+        const newBank = { ...currentState.bank };
+        const txList = newBank.transactions ? [...newBank.transactions] : [];
+
+        if (from === 'checking') newBank.checking -= amount;
+        if (from === 'savings') newBank.savings -= amount;
+
+        if (to === 'checking') newBank.checking += amount;
+        if (to === 'savings') newBank.savings += amount;
+        if (to === 'debts') newBank.debts = Math.max(0, newBank.debts - amount);
+
+        txList.unshift({
+          id: `tx-${now}-${Math.random().toString(36).substring(7)}`,
+          timestamp: now,
+          label: `Virement de ${from === 'checking' ? 'Compte Courant' : 'Livret Épargne'} vers ${to === 'checking' ? 'Compte Courant' : to === 'savings' ? 'Livret Épargne' : 'Remboursement Dette'}`,
+          amount: -amount,
+          account: from,
+          category: 'virement'
+        });
+
+        set({ bank: { ...newBank, transactions: txList }, lastUpdateTime: now });
+        return { success: true };
+      }
+
+      case 'TAKE_LOAN': {
+        const { amount } = action.payload;
+        const validation = DeterministicRulesEngine.validateLoan(currentState.bank, amount);
+        if (!validation.valid) {
+          return { success: false, error: validation.error };
+        }
+
+        const now = Date.now();
+        const newBank = {
+          ...currentState.bank,
+          checking: currentState.bank.checking + amount,
+          debts: currentState.bank.debts + amount
+        };
+        const txList = newBank.transactions ? [...newBank.transactions] : [];
+
+        txList.unshift({
+          id: `tx-loan-${now}`,
+          timestamp: now,
+          label: `Souscription d'emprunt bancaire`,
+          amount: amount,
+          account: 'checking',
+          category: 'virement'
+        });
+
+        set({ bank: { ...newBank, transactions: txList }, lastUpdateTime: now });
+        return { success: true };
+      }
+
+      case 'CONSUME_ITEM': {
+        const { itemId, quantity = 1 } = action.payload;
+        const inv = currentState.inventory || [];
+        const validation = DeterministicRulesEngine.validateConsumption(inv, itemId, quantity);
+        if (!validation.valid || !validation.item) {
+          return { success: false, error: validation.error || "Impossible de consommer cet objet." };
+        }
+
+        const item = validation.item;
+        const qtyToConsume = validation.qtyToConsume;
+        const updatedInventory = inv.map(i => {
+          if (i.id === itemId) {
+            return { ...i, quantity: i.quantity - qtyToConsume };
+          }
+          return i;
+        }).filter(i => i.quantity > 0);
+
+        // Apply item effect to vitals
+        const vitalsImpact: Partial<GameState['vitals']> = {};
+        const lowerName = item.name.toLowerCase();
+
+        if (item.category === 'boisson' || lowerName.includes('eau') || lowerName.includes('café') || lowerName.includes('thé')) {
+          vitalsImpact.hunger = 15 * qtyToConsume;
+          vitalsImpact.energy = (lowerName.includes('café') || lowerName.includes('thé')) ? 10 * qtyToConsume : 5 * qtyToConsume;
+          vitalsImpact.mindset = 3 * qtyToConsume;
+        } else if (item.category === 'nourriture') {
+          vitalsImpact.hunger = 35 * qtyToConsume;
+          vitalsImpact.energy = 10 * qtyToConsume;
+          vitalsImpact.mindset = 4 * qtyToConsume;
+        } else if (item.category === 'hygiene') {
+          vitalsImpact.hygiene = 40 * qtyToConsume;
+          vitalsImpact.mood = 15 * qtyToConsume;
+          vitalsImpact.mindset = 5 * qtyToConsume;
+        }
+
+        set({ inventory: updatedInventory, lastUpdateTime: Date.now() });
+        get().updateVitals(vitalsImpact);
+        return { success: true };
+      }
+
+      case 'MOVE_ITEM': {
+        const { itemId, targetLocation } = action.payload;
+        const inv = (currentState.inventory || []).map(i => 
+          i.id === itemId ? { ...i, location: targetLocation } : i
+        );
+        set({ inventory: inv, lastUpdateTime: Date.now() });
+        return { success: true };
+      }
+
+      case 'DELETE_ITEM': {
+        const { itemId } = action.payload;
+        const inv = (currentState.inventory || []).filter(i => i.id !== itemId);
+        set({ inventory: inv, lastUpdateTime: Date.now() });
+        return { success: true };
+      }
+
+      case 'ADVANCE_TIME': {
+        const { minutes, reason } = action.payload;
+        const validation = DeterministicRulesEngine.validateTimeAdvance(currentState, minutes);
+        if (!validation.valid) {
+          return { success: false, error: validation.error };
+        }
+
+        const now = Date.now();
+        get().updateVitals(validation.vitalDrain);
+
+        // Check if game duration completed
+        const statusEval = DeterministicRulesEngine.evaluateGameStatus(get());
+        if (statusEval.status !== 'active') {
+          set({ gameStatus: statusEval.status, epilogueSummary: statusEval.reason, lastUpdateTime: now });
+        } else {
+          set({ lastUpdateTime: now });
+        }
+        return { success: true };
+      }
+
+      case 'SET_TASK': {
+        set({ currentTask: sanitizeTask(action.payload.task), lastUpdateTime: Date.now() });
+        return { success: true };
+      }
+
+      case 'CANCEL_TASK': {
+        set({ currentTask: null, lastUpdateTime: Date.now() });
+        return { success: true };
+      }
+
+      case 'SET_AUTOPILOT_MODE': {
+        set({ autopilotMode: action.payload.mode, lastUpdateTime: Date.now() });
+        return { success: true };
+      }
+
+      case 'ADD_NARRATIVE': {
+        get().addNarrative(action.payload.role, action.payload.content);
+        return { success: true };
+      }
+
+      case 'SET_CURRENT_LOCATION': {
+        get().setCurrentLocation(action.payload.locationId);
+        return { success: true };
+      }
+
+      case 'UPDATE_CHARACTER_NOTES': {
+        get().updateCharacterNotes(action.payload.characterId, action.payload.notes);
+        return { success: true };
+      }
+
+      case 'UPDATE_LOCATION_NOTES': {
+        get().updateLocationNotes(action.payload.locationId, action.payload.notes);
+        return { success: true };
+      }
+
+      case 'DELETE_CHARACTER': {
+        get().deleteCharacter(action.payload.characterId);
+        return { success: true };
+      }
+
+      case 'DELETE_LOCATION': {
+        get().deleteLocation(action.payload.locationId);
+        return { success: true };
+      }
+
+      case 'UPDATE_CHARACTER_IMAGE': {
+        get().updateCharacterImage(action.payload.characterId, action.payload.imageUrl);
+        return { success: true };
+      }
+
+      case 'UPDATE_LOCATION_IMAGE': {
+        get().updateLocationImage(action.payload.locationId, action.payload.imageUrl);
+        return { success: true };
+      }
+
+      case 'ADD_DIARY_ENTRY': {
+        get().addDiaryEntry(action.payload);
+        return { success: true };
+      }
+
+      case 'UPDATE_DIARY_ENTRY': {
+        get().updateDiaryEntry(action.payload.id, action.payload.updates);
+        return { success: true };
+      }
+
+      case 'DELETE_DIARY_ENTRY': {
+        get().deleteDiaryEntry(action.payload.id);
+        return { success: true };
+      }
+
+      case 'ADD_AGENDA_EVENT': {
+        get().addAgendaEvent(action.payload);
+        return { success: true };
+      }
+
+      case 'UPDATE_AGENDA_EVENT': {
+        get().updateAgendaEvent(action.payload.id, action.payload.updates);
+        return { success: true };
+      }
+
+      case 'DELETE_AGENDA_EVENT': {
+        get().deleteAgendaEvent(action.payload.id);
+        return { success: true };
+      }
+
+      case 'TOGGLE_AGENDA_EVENT': {
+        get().toggleAgendaEventCompleted(action.payload.id);
+        return { success: true };
+      }
+
+      case 'ADD_PLOT_LEAD': {
+        get().addPlotLead(action.payload);
+        return { success: true };
+      }
+
+      case 'UPDATE_PLOT_LEAD': {
+        get().updatePlotLead(action.payload.id, action.payload.updates);
+        return { success: true };
+      }
+
+      case 'DELETE_PLOT_LEAD': {
+        get().deletePlotLead(action.payload.id);
+        return { success: true };
+      }
+
+      case 'ADD_PLOT_LEAD_CLUE': {
+        get().addPlotLeadClue(action.payload.id, action.payload.clue);
+        return { success: true };
+      }
+
+      case 'ADD_RUMOR': {
+        get().addRumor(action.payload);
+        return { success: true };
+      }
+
+      case 'DELETE_RUMOR': {
+        get().deleteRumor(action.payload.id);
+        return { success: true };
+      }
+
+      case 'ADD_MESSAGE': {
+        get().addContactMessage(action.payload);
+        return { success: true };
+      }
+
+      case 'MARK_MESSAGE_READ': {
+        get().markMessageAsRead(action.payload.id);
+        return { success: true };
+      }
+
+      case 'REPLY_MESSAGE': {
+        get().replyToContactMessage(action.payload.id, action.payload.replyText);
+        return { success: true };
+      }
+
+      case 'DELETE_MESSAGE': {
+        get().deleteContactMessage(action.payload.id);
+        return { success: true };
+      }
+
+      default:
+        return { success: false, error: "Action non reconnue." };
+    }
+  },
+
   resetGame: async () => {
     const now = Date.now();
     const freshState: GameState = {
       ...INITIAL_STATE,
       epochRealTime: now,
       lastUpdateTime: now,
+      gameStatus: 'active',
+      epilogueSummary: undefined,
       vitals: {
         energy: 100,
         hunger: 100,
@@ -458,7 +820,7 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
           { id: 'init-1', timestamp: now - 1000, label: 'Solde de départ - Courant', amount: 500, account: 'checking', category: 'virement' }
         ]
       },
-      inventory: [...INITIAL_STATE.inventory],
+      inventory: [...INITIAL_STATE.inventory!],
       characters: { ...INITIAL_STATE.characters },
       locations: { ...INITIAL_STATE.locations },
       diary: [
@@ -534,6 +896,8 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
       inventory: Array.isArray(savedState.inventory) ? savedState.inventory : (state.inventory || INITIAL_STATE.inventory),
       narrativeHistory: sanitizeNarrativeHistory(rawNarrative),
       choices: sanitizeChoices(savedState.choices || state.choices || []),
+      gameStatus: savedState.gameStatus || 'active',
+      epilogueSummary: savedState.epilogueSummary,
       vitals: {
         ...INITIAL_STATE.vitals,
         ...(savedState.vitals || {}),
@@ -572,7 +936,7 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     
     // Strict validation through Deterministic Rule Engine
     const { validatedResponse: res, moneyChangesAllowed } = DeterministicRulesEngine.validateAction(currentState, rawRes);
-    const { updateVitals, updateMoney, addNarrative, applyInventoryUpdates } = get();
+    const { updateVitals, addNarrative } = get();
 
     if (res.narrative) {
       addNarrative('model', res.narrative);
@@ -581,11 +945,86 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
       updateVitals(res.vitalsImpact);
     }
     if (moneyChangesAllowed && res.moneyImpact) {
-      updateMoney(res.moneyImpact, res.moneyImpact.reason);
+      set((state) => {
+        const impact = res.moneyImpact!;
+        const checkingDelta = impact.checkingDelta || 0;
+        const savingsDelta = impact.savingsDelta || 0;
+        const debtsDelta = impact.debtsDelta || 0;
+        const reason = impact.reason || 'Opération financière';
+
+        const newBank = {
+          ...state.bank,
+          checking: state.bank.checking + checkingDelta,
+          savings: state.bank.savings + savingsDelta,
+          debts: Math.max(0, state.bank.debts + debtsDelta)
+        };
+
+        const txList = newBank.transactions ? [...newBank.transactions] : [];
+        if (checkingDelta !== 0) {
+          txList.unshift({
+            id: `tx-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            timestamp: Date.now(),
+            label: reason,
+            amount: checkingDelta,
+            account: 'checking',
+            category: checkingDelta > 0 ? 'salaire' : 'depense'
+          });
+        }
+        if (savingsDelta !== 0) {
+          txList.unshift({
+            id: `tx-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            timestamp: Date.now(),
+            label: reason,
+            amount: savingsDelta,
+            account: 'savings',
+            category: 'virement'
+          });
+        }
+
+        return { bank: { ...newBank, transactions: txList }, lastUpdateTime: Date.now() };
+      });
     }
 
     if (res.inventoryUpdates && res.inventoryUpdates.length > 0) {
-      applyInventoryUpdates(res.inventoryUpdates);
+      set((state) => {
+        const currentInv = [...(state.inventory || [])];
+        res.inventoryUpdates!.forEach(update => {
+          if (!update.name) return;
+          const targetNameLower = update.name.trim().toLowerCase();
+          const existingIdx = currentInv.findIndex(i => 
+            (update.id && i.id === update.id) ||
+            (i.name.trim().toLowerCase() === targetNameLower && i.location === (update.location || 'personnage'))
+          );
+
+          if (existingIdx !== -1) {
+            const currentItem = currentInv[existingIdx];
+            const newQty = currentItem.quantity + update.quantityDelta;
+            if (newQty <= 0) {
+              currentInv.splice(existingIdx, 1);
+            } else {
+              currentInv[existingIdx] = {
+                ...currentItem,
+                quantity: newQty,
+                description: update.description || currentItem.description,
+                freshness: update.freshness || currentItem.freshness,
+                consumable: update.consumable !== undefined ? update.consumable : currentItem.consumable
+              };
+            }
+          } else if (update.quantityDelta > 0) {
+            currentInv.push({
+              id: update.id || `item-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+              name: update.name.trim(),
+              category: update.category || 'divers',
+              quantity: update.quantityDelta,
+              location: update.location || 'personnage',
+              description: update.description || 'Objet obtenu',
+              freshness: update.freshness,
+              consumable: update.consumable ?? false
+            });
+          }
+        });
+        return { inventory: currentInv, lastUpdateTime: Date.now() };
+      });
     }
 
     if (res.newCharacters) {
@@ -719,42 +1158,48 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     const activeTask = get().currentTask;
     if (activeTask) {
       if (res.taskTimeAdjustmentMinutes && res.taskTimeAdjustmentMinutes <= -500) {
-        get().setCurrentTask(null);
+        set({ currentTask: null });
       } else if (res.taskTimeAdjustmentMinutes !== undefined && res.taskTimeAdjustmentMinutes !== null && res.taskTimeAdjustmentMinutes !== 0) {
         const adjustmentMs = (res.taskTimeAdjustmentMinutes / GAME_TIME_MULTIPLIER) * 60 * 1000;
         const newEndTime = activeTask.endTimeReal + adjustmentMs;
         if (newEndTime <= Date.now() + 2000) {
-          get().setCurrentTask(null);
+          set({ currentTask: null });
         } else {
-          get().setCurrentTask({
-            ...activeTask,
-            endTimeReal: newEndTime,
-            lastInteractionTimeReal: Date.now()
+          set({
+            currentTask: {
+              ...activeTask,
+              endTimeReal: newEndTime,
+              lastInteractionTimeReal: Date.now()
+            }
           });
         }
       } else if (res.durationMinutes && res.durationMinutes > 0 && res.taskSummary && res.taskSummary !== activeTask.description) {
         const realMinutes = res.durationMinutes / GAME_TIME_MULTIPLIER;
-        get().setCurrentTask({
-          id: Math.random().toString(36).substr(2, 9),
-          description: res.taskSummary,
-          startTimeReal: Date.now(),
-          endTimeReal: Date.now() + (realMinutes * 60 * 1000),
-          durationMinutes: res.durationMinutes,
-          paused: false,
-          lastInteractionTimeReal: Date.now()
+        set({
+          currentTask: {
+            id: Math.random().toString(36).substr(2, 9),
+            description: res.taskSummary,
+            startTimeReal: Date.now(),
+            endTimeReal: Date.now() + (realMinutes * 60 * 1000),
+            durationMinutes: res.durationMinutes,
+            paused: false,
+            lastInteractionTimeReal: Date.now()
+          }
         });
       }
     } else if (res.durationMinutes && res.durationMinutes > 0 && res.narrative) {
       const realMinutes = res.durationMinutes / GAME_TIME_MULTIPLIER;
       const fallbackSummary = res.taskSummary || (res.narrative ? (res.narrative.split(/[\n.!?,]/)[0].substring(0, 35).trim() + '...') : 'Activité en cours');
-      get().setCurrentTask({
-        id: Math.random().toString(36).substr(2, 9),
-        description: fallbackSummary,
-        startTimeReal: Date.now(),
-        endTimeReal: Date.now() + (realMinutes * 60 * 1000),
-        durationMinutes: res.durationMinutes,
-        paused: false,
-        lastInteractionTimeReal: Date.now()
+      set({
+        currentTask: {
+          id: Math.random().toString(36).substr(2, 9),
+          description: fallbackSummary,
+          startTimeReal: Date.now(),
+          endTimeReal: Date.now() + (realMinutes * 60 * 1000),
+          durationMinutes: res.durationMinutes,
+          paused: false,
+          lastInteractionTimeReal: Date.now()
+        }
       });
     }
     
@@ -901,6 +1346,12 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
         lastUpdateTime: Date.now()
       }));
     }
+
+    // Evaluate terminal status
+    const statusEval = DeterministicRulesEngine.evaluateGameStatus(get());
+    if (statusEval.status !== 'active') {
+      set({ gameStatus: statusEval.status, epilogueSummary: statusEval.reason });
+    }
   },
 
   tick: () => {
@@ -910,6 +1361,12 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     
     if (state.currentTask && now >= state.currentTask.endTimeReal) {
       set({ currentTask: null });
+    }
+
+    // Evaluate Game Status (36h completion, breakdown)
+    const statusEval = DeterministicRulesEngine.evaluateGameStatus(state);
+    if (statusEval.status !== (state.gameStatus || 'active')) {
+      set({ gameStatus: statusEval.status, epilogueSummary: statusEval.reason });
     }
 
     const deltaDays = deltaMs / (36 * 60 * 60 * 1000);
