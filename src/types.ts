@@ -309,6 +309,7 @@ export type GameState = {
   lastUpdateTime: number;
   gameStatus?: GameStatus;
   epilogueSummary?: string;
+  hasAcknowledgedEpilogue?: boolean;
   narrativeArcs?: string[];
   newPlotLeads?: Omit<PlotLead, 'id'>[];
   updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];

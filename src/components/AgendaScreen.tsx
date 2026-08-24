@@ -11,7 +11,8 @@ import {
   formatGameAgendaDate, 
   getAgendaSortKey, 
   getGameDateInfo, 
-  getCalendarDateFromGameDay 
+  getCalendarDateFromGameDay,
+  getGameHoursUntilEvent
 } from '../lib/utils';
 
 type FilterCategory = 'all' | 'travail' | 'rdv' | 'personnel' | 'finance' | 'urgent';
@@ -336,6 +337,9 @@ export function AgendaScreen() {
         ) : (
           filteredEvents.map((event) => {
             const badge = getCategoryBadge(event.category);
+            const hoursUntil = event.dateGameStr ? getGameHoursUntilEvent(event.dateGameStr, epochRealTime) : null;
+            const isOverdue = !event.completed && hoursUntil !== null && hoursUntil < -0.5;
+
             return (
               <div
                 key={event.id}
@@ -343,6 +347,8 @@ export function AgendaScreen() {
                   "p-3.5 rounded-2xl border transition-all flex items-start gap-3 relative group",
                   event.completed
                     ? "bg-slate-900/30 border-white/5 text-slate-500"
+                    : isOverdue
+                    ? "bg-rose-950/20 border-rose-500/30 text-slate-200 hover:border-rose-500/50 shadow-sm"
                     : "bg-slate-900/60 border-white/10 text-slate-200 hover:border-white/20 shadow-sm"
                 )}
               >
@@ -368,9 +374,21 @@ export function AgendaScreen() {
                     </span>
 
                     {event.dateGameStr && (
-                      <span className="text-[11px] font-semibold text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded-md border border-sky-400/30 flex items-center gap-1 font-mono">
-                        <Clock className="w-3 h-3 text-sky-400" />
+                      <span className={cn(
+                        "text-[11px] font-semibold px-2 py-0.5 rounded-md border flex items-center gap-1 font-mono",
+                        isOverdue
+                          ? "text-rose-300 bg-rose-950/80 border-rose-400/40"
+                          : "text-sky-300 bg-sky-950/80 border-sky-400/30"
+                      )}>
+                        <Clock className="w-3 h-3 text-current" />
                         {formatGameAgendaDate(event.dateGameStr)}
+                      </span>
+                    )}
+
+                    {isOverdue && (
+                      <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Échu / Dépassé
                       </span>
                     )}
                   </div>

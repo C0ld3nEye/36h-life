@@ -35,17 +35,17 @@ export class DeterministicRulesEngine {
       };
     }
 
-    // 2. 36h cycle completion
-    if (elapsedGameHours >= 36) {
+    // 2. 36h cycle completion (Only evaluated once, before player continues in open-ended mode)
+    if (!state.hasAcknowledgedEpilogue && elapsedGameHours >= 36) {
       if (state.vitals.mindset >= 35 && state.vitals.energy >= 15 && state.bank.checking >= 0) {
         return {
           status: 'victory',
-          reason: "Cycle de 36 heures accompli avec succès ! Vous avez su préserver votre stabilité financière, maintenir votre lucidité et tisser des liens solides dans la cité."
+          reason: "Cycle initial de 36 heures accompli avec succès ! Vous avez su préserver votre stabilité financière, maintenir votre lucidité et poser les bases de votre vie dans la cité."
         };
       } else {
         return {
           status: 'timeout',
-          reason: "Le cycle de 36 heures est arrivé à son terme. Bien que le rythme fut éprouvant, vous avez franchi ce cap d'acclimatation."
+          reason: "Le premier cycle de 36 heures est arrivé à son terme. Bien que le rythme fut éprouvant, vous avez franchi ce premier cap d'acclimatation."
         };
       }
     }

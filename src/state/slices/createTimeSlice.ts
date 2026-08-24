@@ -10,6 +10,7 @@ export interface TimeSlice {
   autopilotMode: GameState['autopilotMode'];
   gameStatus: GameStatus;
   epilogueSummary?: string;
+  hasAcknowledgedEpilogue?: boolean;
   loaded: boolean;
   setLoaded: (val: boolean) => void;
   setCurrentTask: (task: Task | null) => void;
@@ -25,6 +26,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
   autopilotMode: 'normal',
   gameStatus: 'active',
   epilogueSummary: undefined,
+  hasAcknowledgedEpilogue: false,
   loaded: false,
 
   setLoaded: (val) => set({ loaded: val }),

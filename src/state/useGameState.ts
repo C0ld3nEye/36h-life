@@ -18,6 +18,8 @@ export const GAME_TIME_MULTIPLIER = 1;
 export interface GameStore extends TimeSlice, InventorySlice, MentalSlice, BankSlice, WorldSlice {
   loadState: (state: Partial<GameState>) => void;
   resetGame: () => Promise<void>;
+  continueGameAfterEpilogue: () => void;
+  recoverFromBreakdown: () => void;
   dispatchGameAction: (action: GameAction) => { success: boolean; error?: string };
   processActionResponse: (res: ActionResponse) => void;
   tick: () => void;
@@ -826,6 +828,86 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     });
 
     await resetCloudAndLocalData(freshState);
+  },
+
+  continueGameAfterEpilogue: () => {
+    set({
+      gameStatus: 'active',
+      hasAcknowledgedEpilogue: true,
+      lastUpdateTime: Date.now()
+    });
+  },
+
+  recoverFromBreakdown: () => {
+    const state = get();
+    const now = Date.now();
+    const newVitals = {
+      ...state.vitals,
+      energy: Math.max(state.vitals.energy, 45),
+      hunger: Math.max(state.vitals.hunger, 45),
+      mindset: Math.max(state.vitals.mindset || 50, 40),
+      mood: Math.max(state.vitals.mood, 45)
+    };
+    const diaryEntries = [...(state.diary || [])];
+    diaryEntries.push({
+      id: `diary-${now}`,
+      gameDate: now,
+      title: "Prise en charge au dispensaire de Saint-Michel",
+      content: "Après un épuisement critique, les secours du quartier m'ont transporté d'urgence au dispensaire. Quelques perfusions, un bouillon chaud et un repos sous surveillance m'ont permis de reprendre mes esprits.",
+      category: 'absence',
+      mood: 'Soulagé & Convalescent',
+      milestone: false,
+      isPersonal: false
+    });
+
+    const newBank = { ...state.bank };
+    const txList = newBank.transactions ? [...newBank.transactions] : [];
+    // Minor medical stabilization cost (-30€ or added to debts)
+    const medicalFee = 30;
+    if (newBank.checking >= medicalFee) {
+      newBank.checking -= medicalFee;
+      txList.unshift({
+        id: `tx-${now}-${Math.random().toString(36).substring(7)}`,
+        timestamp: now,
+        label: "Frais de soins d'urgence (Dispensaire)",
+        amount: -medicalFee,
+        account: 'checking',
+        category: 'depense'
+      });
+    } else {
+      newBank.debts = (newBank.debts || 0) + medicalFee;
+      txList.unshift({
+        id: `tx-${now}-${Math.random().toString(36).substring(7)}`,
+        timestamp: now,
+        label: "Dette médicale (Dispensaire de quartier)",
+        amount: medicalFee,
+        account: 'debts',
+        category: 'facture'
+      });
+    }
+    newBank.transactions = txList;
+
+    set({
+      gameStatus: 'active',
+      hasAcknowledgedEpilogue: true,
+      vitals: newVitals,
+      bank: newBank,
+      diary: diaryEntries,
+      narrativeHistory: [
+        ...(state.narrativeHistory || []),
+        {
+          role: 'model',
+          content: "🚑 [DISPENSAIRE MÉDICAL DE SAINT-MICHEL]\nVous rouvrez les yeux sur un lit sobre du dispensaire de quartier. L'infirmière de garde vous tend un verre d'eau et une solution électrolytique : « Vous avez frôlé le surmenage aigu. Vos constantes sont stabilisées, mais ménagez-vous désormais ! Pensez à manger et à dormir. »",
+          timestamp: now
+        }
+      ],
+      choices: [
+        "Remercier l'infirmière et quitter doucement le dispensaire.",
+        "Consulter mon communicateur pour faire le point sur mes affaires.",
+        "Rentrer directement au studio pour me reposer au calme."
+      ],
+      lastUpdateTime: now
+    });
   },
 
   loadState: (savedState) => set((state) => {
