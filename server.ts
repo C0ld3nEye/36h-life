@@ -1913,6 +1913,63 @@ const offlineRecapSchema: Schema = {
         required: ["id"]
       }
     },
+    newMessages: {
+      type: Type.ARRAY,
+      description: "Passive narrative events: Messages received from contacts while the character was sleeping or busy.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          senderId: { type: Type.STRING },
+          senderName: { type: Type.STRING },
+          preview: { type: Type.STRING },
+          content: { type: Type.STRING },
+          timestampGameDateStr: { type: Type.STRING },
+          replyOptions: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["senderName", "content"]
+      }
+    },
+    newPlotLeads: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          category: { type: Type.STRING, enum: ['emploi', 'mystere', 'quartier', 'personnel', 'finance'] },
+          qualitativeStage: { type: Type.STRING },
+          clues: { type: Type.ARRAY, items: { type: Type.STRING } },
+          status: { type: Type.STRING, enum: ['actif', 'en_pause', 'resolu', 'abandonne'] }
+        },
+        required: ["title"]
+      }
+    },
+    updatedPlotLeads: {
+      type: Type.ARRAY,
+      description: "Plot leads that expired or evolved naturally while the character was asleep/absent.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          qualitativeStage: { type: Type.STRING },
+          newClues: { type: Type.ARRAY, items: { type: Type.STRING } },
+          status: { type: Type.STRING, enum: ['actif', 'en_pause', 'resolu', 'abandonne'] }
+        },
+        required: ["id"]
+      }
+    },
+    newRumors: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          text: { type: Type.STRING },
+          source: { type: Type.STRING },
+          credibility: { type: Type.STRING, enum: ['faible', 'plausible', 'averee'] },
+          district: { type: Type.STRING }
+        },
+        required: ["text"]
+      }
+    },
     diaryEntry: {
       type: Type.OBJECT,
       description: "An introspective first-person diary entry summarizing the character's personal feelings, reflections, and thoughts during this long absence.",
@@ -2096,6 +2153,7 @@ INSTRUCTIONS:
 8. 'moneyImpact': Strictly in Euros (€). If groceries/meals were bought during a long absence, populate checkingDelta (e.g. -25) and reason.
 9. 'inventoryUpdates': If provisions or items were purchased or obtained, include them with 'location': 'appartement' or 'personnage' so the inventory updates immediately.
 10. If in "curieux" mode and away for several hours, you may introduce a 'newCharacters' or 'newLocations'.
+11. PASSIVE EVENTS (CRITICAL): If the character was asleep or absent for >3 hours, inject passive narrative events! Life continues while they sleep. You MUST generate at least one 'newMessages' (e.g. a contact messaging them at 3 AM), or expire/update an active plot in 'updatedPlotLeads', or generate a 'newRumors' happening in the city.
     `;
 
     let responseText = "";

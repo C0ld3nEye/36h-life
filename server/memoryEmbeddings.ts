@@ -65,58 +65,55 @@ export async function retrieveRelevantMemories(
   const qTokens = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
   const now = Date.now();
 
-  const scored = memories.map(mem => {
-    let semanticScore = 0;
+  const scored = memories
+    .map(mem => {
+      let semanticScore = 0;
+      let cos = 0;
 
-    // 1. Vector cosine similarity if embedding is available
-    if (queryEmbedding && mem.embedding && mem.embedding.length > 0) {
-      const cos = cosineSimilarity(queryEmbedding, mem.embedding);
-      semanticScore += cos * 2.5; // Primary semantic signal
-    }
+      // 1. Vector cosine similarity if embedding is available
+      if (queryEmbedding && mem.embedding && mem.embedding.length > 0) {
+        cos = cosineSimilarity(queryEmbedding, mem.embedding);
+        semanticScore += cos * 2.5; // Primary semantic signal
+      }
 
-    // 2. Keyword & tag boost
-    const summaryLower = (mem.summary || '').toLowerCase();
-    const tagMatchCount = (mem.tags || []).filter(t => query.toLowerCase().includes(t.toLowerCase())).length;
-    semanticScore += tagMatchCount * 0.5;
+      // 2. Keyword & tag boost
+      const summaryLower = (mem.summary || '').toLowerCase();
+      const tagMatchCount = (mem.tags || []).filter(t => query.toLowerCase().includes(t.toLowerCase())).length;
+      semanticScore += tagMatchCount * 0.5;
 
-    const matchedTokens = qTokens.filter(t => summaryLower.includes(t)).length;
-    semanticScore += matchedTokens * 0.3;
+      const matchedTokens = qTokens.filter(t => summaryLower.includes(t)).length;
+      semanticScore += matchedTokens * 0.3;
 
-    // 3. Intrinsic importance weighting
-    let importanceBoost = 0;
-    if (mem.importance === 'critique') importanceBoost = 0.4;
-    else if (mem.importance === 'haute') importanceBoost = 0.2;
+      // 3. Intrinsic importance weighting
+      let importanceBoost = 0;
+      if (mem.importance === 'critique') importanceBoost = 0.4;
+      else if (mem.importance === 'haute') importanceBoost = 0.2;
 
-    // 4. Temporal Decay Weighting (recency factor on 36-hour planet scale)
-    // 1 real hour = 1 in-game hour
-    const memoryTimestamp = mem.timestamp || now;
-    const elapsedMs = Math.max(0, now - memoryTimestamp);
-    const elapsedGameHours = elapsedMs / (3600 * 1000);
+      // 4. Temporal Decay Weighting (recency factor on 36-hour planet scale)
+      const memoryTimestamp = mem.timestamp || now;
+      const elapsedMs = Math.max(0, now - memoryTimestamp);
+      const elapsedGameHours = elapsedMs / (3600 * 1000);
 
-    // Half-life calculation based on memory importance:
-    // Standard memories have a half-life of 36h (1 in-game day)
-    // High importance memories half-life = 144h (4 in-game days)
-    // Critical memories half-life = 720h (20 in-game days)
-    const halfLifeHours = mem.importance === 'critique' ? 720 : (mem.importance === 'haute' ? 144 : 36);
-    const recencyFactor = Math.pow(0.5, elapsedGameHours / halfLifeHours);
+      const halfLifeHours = mem.importance === 'critique' ? 720 : (mem.importance === 'haute' ? 144 : 36);
+      const recencyFactor = Math.pow(0.5, elapsedGameHours / halfLifeHours);
 
-    // Strong recency boost for events that occurred in the immediate past (within 2 in-game hours)
-    // Facts from 2 hours ago must prime over ancient baseline facts
-    let immediatePastBonus = 0;
-    if (elapsedGameHours <= 2) {
-      immediatePastBonus = 0.6;
-    } else if (elapsedGameHours <= 6) {
-      immediatePastBonus = 0.3;
-    } else if (elapsedGameHours <= 12) {
-      immediatePastBonus = 0.15;
-    }
+      let immediatePastBonus = 0;
+      if (elapsedGameHours <= 2) {
+        immediatePastBonus = 0.6;
+      } else if (elapsedGameHours <= 6) {
+        immediatePastBonus = 0.3;
+      } else if (elapsedGameHours <= 12) {
+        immediatePastBonus = 0.15;
+      }
 
-    // Composite weighted score: semantic signal modulated by temporal decay + immediate past bonus + importance
-    const compositeScore = ((semanticScore + importanceBoost) * (0.55 + 0.45 * recencyFactor)) + immediatePastBonus;
+      // Composite weighted score
+      const compositeScore = ((semanticScore + importanceBoost) * (0.55 + 0.45 * recencyFactor)) + immediatePastBonus;
 
-    return { memory: mem, score: compositeScore };
-  });
+      return { memory: mem, score: compositeScore, cos };
+    })
+    // Strict cosine similarity threshold, but allow keyword fallback if no query embedding is available
+    .filter(s => !queryEmbedding || s.cos >= 0.70);
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK).map(s => s.memory);
+  return scored.slice(0, Math.min(topK, 5)).map(s => s.memory);
 }

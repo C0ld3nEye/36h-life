@@ -62,7 +62,10 @@ export function SleepModal({ onClose, onSleep }: SleepModalProps) {
             Fermez l'application ou quittez le jeu. Un récapitulatif détaillé vous attendra lors de votre prochain réveil.
           </div>
           <button
-            onClick={() => { onSleep(); }}
+            onClick={() => { 
+              onSleep(); 
+              window.dispatchEvent(new Event('force_offline_check'));
+            }}
             className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-2xl transition-all"
           >
             Se réveiller maintenant

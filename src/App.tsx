@@ -158,11 +158,11 @@ export default function App() {
       if (!remoteState) return;
       const currentState = useGameStore.getState();
       
-      const localCount = Array.isArray(currentState.narrativeHistory) ? currentState.narrativeHistory.length : 0;
-      const remoteCount = Array.isArray(remoteState.narrativeHistory) ? remoteState.narrativeHistory.length : 0;
+      const localUpdateTime = currentState.lastUpdateTime || 0;
+      const remoteUpdateTime = remoteState.lastUpdateTime || 0;
       
-      // Update if remote state has new narrative entries or is strictly newer
-      if (remoteCount >= localCount) {
+      // Update only if remote state is strictly newer than our local state
+      if (remoteUpdateTime > localUpdateTime) {
         isSyncingFromRemoteRef.current = true;
         loadState(remoteState);
         setTimeout(() => { isSyncingFromRemoteRef.current = false; }, 500);
@@ -295,9 +295,11 @@ export default function App() {
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("force_offline_check", handleOfflineCheck);
     return () => {
       clearInterval(activeInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("force_offline_check", handleOfflineCheck);
     };
   }, [autopilotMode, addOfflineRecap, loaded]);
 
