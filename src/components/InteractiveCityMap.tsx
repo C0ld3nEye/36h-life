@@ -521,44 +521,46 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
               )}
 
               {/* Fast Travel Actions */}
-              <div className="pt-3 border-t border-white/10 space-y-2">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Itinéraires & Déplacements</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleTravelTo(activeLocDetails, 'a_pied')}
-                    className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 hover:border-emerald-500/40 text-left flex items-center justify-between group transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Footprints className="w-4 h-4 text-emerald-400" />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-slate-100">Trajet à pied</span>
-                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/30">~20 min</span>
+              {!(activeLocDetails.isCurrentLocation || (currentLocation && currentLocation.id === activeLocDetails.id)) && (
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Itinéraires & Déplacements</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleTravelTo(activeLocDetails, 'a_pied')}
+                      className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 hover:border-emerald-500/40 text-left flex items-center justify-between group transition-all"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Footprints className="w-4 h-4 text-emerald-400" />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-100">Trajet à pied</span>
+                            <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/30">~20 min</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">Balade urbaine rythmée</div>
                         </div>
-                        <div className="text-[10px] text-slate-400">Balade urbaine rythmée</div>
                       </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
-                  </button>
-
-                  <button
-                    onClick={() => handleTravelTo(activeLocDetails, 'transport')}
-                    className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 hover:border-sky-500/40 text-left flex items-center justify-between group transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Train className="w-4 h-4 text-sky-400" />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-slate-100">Monorail / Navette</span>
-                          <span className="text-[10px] font-semibold text-sky-400 bg-sky-950/80 px-1.5 py-0.2 rounded border border-sky-500/30">~10 min</span>
+                      <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+  
+                    <button
+                      onClick={() => handleTravelTo(activeLocDetails, 'transport')}
+                      className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 hover:border-sky-500/40 text-left flex items-center justify-between group transition-all"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Train className="w-4 h-4 text-sky-400" />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-100">Monorail / Navette</span>
+                            <span className="text-[10px] font-semibold text-sky-400 bg-sky-950/80 px-1.5 py-0.2 rounded border border-sky-500/30">~10 min</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">Déplacement rapide sécurisé</div>
                         </div>
-                        <div className="text-[10px] text-slate-400">Déplacement rapide sécurisé</div>
                       </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all" />
-                  </button>
+                      <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

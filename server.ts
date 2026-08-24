@@ -1118,6 +1118,21 @@ app.post('/api/action', async (req, res) => {
       .map(s => `- ${s.name} : Niveau ${s.level} (${s.practicePoints}/100 progression vers niveau suivant)`)
       .join('\n');
 
+    // Missing State Injections (Plot Leads, Rumors, Messages)
+    const activePlotLeadsList = (state.plotLeads || [])
+      .filter((l: any) => l.status !== 'resolu')
+      .map((l: any) => `- [${l.category.toUpperCase()}] ${l.title} (Stade: ${l.qualitativeStage})\n  - Indices: ${(l.clues || []).join(' | ')}\n  - Notes: ${l.notes || 'Aucune'}`)
+      .join('\n');
+      
+    const activeRumorsList = (state.rumors || [])
+      .map((r: any) => `- [RUMEUR ${r.credibility.toUpperCase()} - Quartier: ${r.district}] ${r.text} (Source: ${r.source})`)
+      .join('\n');
+      
+    const recentMessagesList = (state.messages || [])
+      .slice(0, 5)
+      .map((m: any) => `- Message ${m.read ? "lu" : "NON LU"} de ${m.senderName}: "${m.preview}" (Options de réponse suggérées: ${(m.replyOptions || []).join(' | ')})`)
+      .join('\n');
+
     // Bank Account and Finances Context
     const checking = state.bank?.checking ?? 0;
     const savings = state.bank?.savings ?? 0;
@@ -1270,6 +1285,16 @@ ${recentTransactionsList || "Aucune transaction récente."}
     - IL EST STRICTEMENT INTERDIT d'inventer des chiffres fantaisistes (ex: 150€, 155€...) qui ne correspondent pas aux comptes réels !
 - DIRECTEUR NARRATIF - ARCS D'ANTICIPATION & INTRIGUES EN COURS :
 ${activePlotThreadsList}
+
+- PISTES D'ENQUÊTE & PROJETS ACTIFS DU JOUEUR (PLOT LEADS) :
+${activePlotLeadsList || "Aucune piste ou projet structuré en cours."}
+
+- RUMEURS LOCALES ENTENDUES :
+${activeRumorsList || "Aucune rumeur locale majeure."}
+
+- MESSAGERIE COMMUNICATEUR (MESSAGES RÉCENTS) :
+${recentMessagesList || "Aucun message récent."}
+
 - REPERTOIRE CANONIQUE DES PERSONNAGES CONNUS (TOUJOURS RÉUTILISER SANS CRÉER DE DOUBLONS) :
 ${canonicalCharactersList}
 - REPERTOIRE CANONIQUE DES LIEUX CONNUS (TOUJOURS RÉUTILISER SANS CRÉER DE DOUBLONS) :
@@ -2042,6 +2067,20 @@ app.post('/api/offline', async (req, res) => {
       ? apartmentInventory.map((i: any) => `- ${i.name} (x${i.quantity || 1}) [${i.category || 'divers'}]${i.freshness ? ` (${i.freshness})` : ''}`).join('\n')
       : "Frigo et placards vides (aucun aliment ou objet stocké).";
 
+    const activePlotLeadsList = (state.plotLeads || [])
+      .filter((l: any) => l.status !== 'resolu')
+      .map((l: any) => `- [${l.category.toUpperCase()}] ${l.title} (Stade: ${l.qualitativeStage})\n  - Indices: ${(l.clues || []).join(' | ')}\n  - Notes: ${l.notes || 'Aucune'}`)
+      .join('\n');
+      
+    const activeRumorsList = (state.rumors || [])
+      .map((r: any) => `- [RUMEUR ${r.credibility.toUpperCase()} - Quartier: ${r.district}] ${r.text} (Source: ${r.source})`)
+      .join('\n');
+      
+    const recentMessagesList = (state.messages || [])
+      .slice(0, 5)
+      .map((m: any) => `- Message ${m.read ? "lu" : "NON LU"} de ${m.senderName}: "${m.preview}" (Options de réponse suggérées: ${(m.replyOptions || []).join(' | ')})`)
+      .join('\n');
+
     // Bank Account Context
     const checking = state.bank?.checking ?? 0;
     const savings = state.bank?.savings ?? 0;
@@ -2118,8 +2157,19 @@ ${knownCharactersList || "Aucun pour l'instant"}
 ${knownLocationsList || "Aucun pour l'instant"}
 - Compétences du joueur :
 ${skillsList || "Cuisine, Communication, Bricolage"}
+
 - Agenda & Événements à venir :
 ${upcomingAgendaList || "Aucun événement prévu"}
+
+- PISTES D'ENQUÊTE & PROJETS ACTIFS (PLOT LEADS) :
+${activePlotLeadsList || "Aucune piste ou projet en cours."}
+
+- RUMEURS LOCALES :
+${activeRumorsList || "Aucune rumeur."}
+
+- MESSAGES RÉCENTS :
+${recentMessagesList || "Aucun message récent."}
+
 - Inventaire dans le studio / appartement (Frigo, Kitchenette, Placards) :
 ${apartmentInvList}
 - Objets transportés sur le personnage :
