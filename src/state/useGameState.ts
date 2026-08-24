@@ -300,54 +300,8 @@ export const INITIAL_STATE: GameState = {
     "Sortir explorer le quartier Saint-Michel."
   ],
   lastUpdateTime: Date.now(),
-  plotLeads: [
-    {
-      id: 'lead-emploi-neo-paris',
-      title: 'Prise de contact & Emploi à Néo-Paris',
-      category: 'emploi',
-      status: 'actif',
-      qualitativeStage: 'Premiers repérages effectués',
-      clues: [
-        'Le terminal de l\'appartement permet de consulter les opportunités professionnelles du secteur.',
-        'Léo Mercier a suggéré de passer au Bistro Néo-Lumina pour échanger avec des habitués.',
-        'La Gare Centrale propose des missions de logistique et de maintenance pour démarrer.'
-      ],
-      relatedCharacterIds: ['char-leo'],
-      relatedLocationIds: ['loc-appartement', 'loc-cafe-lumina', 'loc-hub-transport'],
-      discoveredGameDateStr: 'Jour 1',
-      notes: 'Priorité : trouver une source de revenus régulière pour assurer le loyer du studio.'
-    },
-    {
-      id: 'lead-mystere-saint-michel',
-      title: 'L\'interférence nocturne du sous-sol',
-      category: 'mystere',
-      status: 'actif',
-      qualitativeStage: 'Rumeurs insistantes à vérifier',
-      clues: [
-        'Un léger bourdonnement électromagnétique est parfois perceptible près des grilles d\'aération la nuit.',
-        'Les commerçants de la rue parlent de coupures d\'énergie brèves lors du zénith solaire.'
-      ],
-      relatedLocationIds: ['loc-cafe-lumina'],
-      discoveredGameDateStr: 'Jour 1',
-      notes: 'À observer lors d\'une sortie nocturne ou lors des heures calmes du cycle.'
-    }
-  ],
-  rumors: [
-    {
-      id: 'rumor-monorail-nuit',
-      text: 'La ligne 4 du monorail vers les quais fluviaux va bientôt ouvrir de nouvelles dessertes nocturnes.',
-      source: 'Discussion entendue au Bistro Néo-Lumina',
-      credibility: 'plausible',
-      district: 'Quartier Saint-Michel'
-    },
-    {
-      id: 'rumor-marche-serres',
-      text: 'Le marché couvert du dimanche matin proposerait des produits frais issus des serres orbitales à tarif direct producteur.',
-      source: 'Annonce sur le panneau communautaire de l\'immeuble',
-      credibility: 'averee',
-      district: 'Quartier Saint-Michel'
-    }
-  ],
+  plotLeads: [],
+  rumors: [],
   messages: [
     {
       id: 'msg-leo-welcome',

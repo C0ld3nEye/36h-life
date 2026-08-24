@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { saveGameStateToIDB, clearGameStateFromIDB } from './dbPersistence';
+import { saveGameStateToIDB, clearGameStateFromIDB, mergeGameStates } from './dbPersistence';
 
 export interface SyncStatus {
   state: 'synced' | 'saving' | 'error' | 'offline' | 'guest';
@@ -74,9 +74,15 @@ let isQuotaExhausted = false;
 export function triggerCloudSave(state: any, immediate = false) {
   if (!state) return;
 
+  // Ensure state has an active timestamp
+  const stateWithTimestamp = {
+    ...state,
+    lastUpdateTime: state.lastUpdateTime || Date.now()
+  };
+
   // 1. Immediately backup to local IndexedDB and localStorage (Zero risk of data loss)
   try {
-    const cleanState = cleanObjectForFirestore(state);
+    const cleanState = cleanObjectForFirestore(stateWithTimestamp);
     saveGameStateToIDB(cleanState);
     try {
       localStorage.setItem('local_game_state', JSON.stringify(cleanState));
@@ -99,7 +105,7 @@ export function triggerCloudSave(state: any, immediate = false) {
     return;
   }
 
-  const newSignature = computeStateSignature(state);
+  const newSignature = computeStateSignature(stateWithTimestamp);
   if (newSignature === lastSavedSignature) {
     // No meaningful change to save to Firestore
     return;
@@ -120,12 +126,13 @@ export function triggerCloudSave(state: any, immediate = false) {
         return;
       }
 
-      const cleanState = cleanObjectForFirestore(state);
+      const cleanState = cleanObjectForFirestore(stateWithTimestamp);
       const docRef = doc(db, 'users', user.uid);
       
       await setDoc(docRef, {
         uid: user.uid,
         gameState: cleanState,
+        lastUpdateTime: cleanState.lastUpdateTime || Date.now(),
         narrativeCount: Array.isArray(cleanState.narrativeHistory) ? cleanState.narrativeHistory.length : 0,
         updatedAt: serverTimestamp()
       }, { merge: true });
@@ -166,7 +173,8 @@ export function triggerCloudSave(state: any, immediate = false) {
 
 export function subscribeToCloudChanges(
   user: User | null,
-  onRemoteUpdate: (remoteState: any) => void
+  onRemoteUpdate: (remoteState: any, shouldPushToCloud?: boolean) => void,
+  getLocalState?: () => any
 ): () => void {
   if (!user || user.isAnonymous) return () => {};
 
@@ -186,7 +194,31 @@ export function subscribeToCloudChanges(
           
           if (remoteSignature && remoteSignature !== lastSavedSignature) {
             lastSavedSignature = remoteSignature;
-            onRemoteUpdate(remoteState);
+            
+            // Conflict check with local state
+            const localState = getLocalState ? getLocalState() : null;
+            if (localState && localState.lastUpdateTime) {
+              const localTime = Number(localState.lastUpdateTime || 0);
+              const remoteTime = Number(remoteState.lastUpdateTime || 0);
+
+              // If local state is strictly newer by > 1.5s, keep local and push to Firestore!
+              if (localTime > remoteTime + 1500) {
+                console.log("Local state is newer than remote cloud state. Syncing local offline changes to Firestore...");
+                triggerCloudSave(localState, true);
+                updateStatus({
+                  state: 'synced',
+                  lastSavedAt: Date.now()
+                });
+                return;
+              }
+
+              // If states are close or divergent, merge them gracefully
+              const merged = mergeGameStates(localState, remoteState);
+              onRemoteUpdate(merged, false);
+            } else {
+              onRemoteUpdate(remoteState, false);
+            }
+
             updateStatus({
               state: user.isAnonymous ? 'guest' : 'synced',
               lastSavedAt: Date.now()
@@ -243,6 +275,7 @@ export async function resetCloudAndLocalData(freshState: any): Promise<void> {
       await setDoc(docRef, {
         uid: currentUser.uid,
         gameState: cleanState,
+        lastUpdateTime: Date.now(),
         narrativeCount: 1,
         updatedAt: serverTimestamp()
       }); // Clean overwrite (no merge: true) to wipe all previous sub-properties
@@ -258,3 +291,4 @@ export async function resetCloudAndLocalData(freshState: any): Promise<void> {
     updateStatus({ state: 'guest' });
   }
 }
+

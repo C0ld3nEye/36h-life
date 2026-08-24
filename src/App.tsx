@@ -13,7 +13,7 @@ import { EpilogueModal } from './components/EpilogueModal';
 import { soundEngine } from './lib/audio';
 import { useGameStore } from './state/useGameState';
 import { api } from './lib/api';
-import { loadGameStateFromIDB } from './lib/dbPersistence';
+import { loadGameStateFromIDB, mergeGameStates } from './lib/dbPersistence';
 import { triggerCloudSave, subscribeToCloudChanges } from './lib/cloudSync';
 import { getAtmosphereForHour } from './lib/atmosphere';
 import { getGameDateInfo, cn } from './lib/utils';
@@ -65,6 +65,23 @@ export default function App() {
       }
 
       const idbState = await loadGameStateFromIDB();
+
+      const localCandidate = idbState || localParsed;
+
+      // If both firestore and local exist, merge them to prevent offline overwrites
+      if (firestoreState && localCandidate) {
+        const merged = mergeGameStates(localCandidate, firestoreState);
+        const localTime = getSnapshotTimestamp(localCandidate);
+        const firestoreTime = getSnapshotTimestamp(firestoreState);
+
+        // If local offline session is newer, sync merged state up to Firestore
+        if (localTime > firestoreTime) {
+          setTimeout(() => {
+            triggerCloudSave(merged, true);
+          }, 1000);
+        }
+        return merged;
+      }
 
       const candidates = [
         { source: 'firestore', data: firestoreState },
@@ -154,20 +171,24 @@ export default function App() {
   useEffect(() => {
     if (!user || !loaded) return;
 
-    const unsubscribeRemote = subscribeToCloudChanges(user, (remoteState) => {
-      if (!remoteState) return;
-      const currentState = useGameStore.getState();
-      
-      const localUpdateTime = currentState.lastUpdateTime || 0;
-      const remoteUpdateTime = remoteState.lastUpdateTime || 0;
-      
-      // Update only if remote state is strictly newer than our local state
-      if (remoteUpdateTime > localUpdateTime) {
-        isSyncingFromRemoteRef.current = true;
-        loadState(remoteState);
-        setTimeout(() => { isSyncingFromRemoteRef.current = false; }, 500);
-      }
-    });
+    const unsubscribeRemote = subscribeToCloudChanges(
+      user,
+      (remoteState) => {
+        if (!remoteState) return;
+        const currentState = useGameStore.getState();
+        
+        const localUpdateTime = currentState.lastUpdateTime || 0;
+        const remoteUpdateTime = remoteState.lastUpdateTime || 0;
+        
+        // Update if remote state is strictly newer or has been merged
+        if (remoteUpdateTime >= localUpdateTime) {
+          isSyncingFromRemoteRef.current = true;
+          loadState(remoteState);
+          setTimeout(() => { isSyncingFromRemoteRef.current = false; }, 500);
+        }
+      },
+      () => useGameStore.getState()
+    );
 
     return () => {
       unsubscribeRemote();

@@ -37,8 +37,8 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 export async function getEmbedding(text: string): Promise<number[] | null> {
   if (!text || text.trim().length === 0) return null;
   try {
-    const response: any = await (getAI().models as any).embedContent({
-      model: 'text-embedding-004',
+    const response: any = await getAI().models.embedContent({
+      model: 'gemini-embedding-2-preview',
       contents: text.trim(),
     });
 
@@ -46,7 +46,7 @@ export async function getEmbedding(text: string): Promise<number[] | null> {
       return response.embedding.values;
     }
   } catch (err: any) {
-    // Fallback: silently handle quota or offline mode
+    // Fallback: silently handle quota, offline mode, or embedding service status
     console.warn("Embedding generation note (fallback active):", err?.message || err);
   }
   return null;

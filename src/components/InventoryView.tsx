@@ -203,11 +203,11 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
                   </div>
                 </div>
 
-                {/* Right: Badges & Actions */}
+                {/* Right: Badges */}
                 <div className="flex items-center gap-2 shrink-0">
                   {item.freshness && (
                     <span className={cn(
-                      "text-[9px] font-semibold px-1.5 py-0.5 rounded border hidden sm:inline-block",
+                      "text-[9px] font-semibold px-1.5 py-0.5 rounded border",
                       item.freshness === 'frais' && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
                       item.freshness === 'perime' && "bg-rose-500/10 text-rose-400 border-rose-500/20",
                       item.freshness === 'sec' && "bg-amber-500/10 text-amber-400 border-amber-500/20",
@@ -218,46 +218,13 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
                   )}
 
                   <span className={cn(
-                    "text-[10px] font-medium px-2 py-0.5 rounded-md border hidden sm:inline-block",
+                    "text-[10px] font-medium px-2 py-0.5 rounded-md border",
                     isAtHome 
                       ? "bg-sky-500/10 text-sky-300 border-sky-500/20" 
                       : "bg-amber-500/10 text-amber-300 border-amber-500/20"
                   )}>
                     {isAtHome ? "🏠 Studio" : "🎒 Sur moi"}
                   </span>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 ml-2">
-                    {item.consumable && (
-                      <button
-                        onClick={() => {
-                          const { dispatchGameAction, addNarrative } = useGameStore.getState();
-                          const res = dispatchGameAction({ type: 'CONSUME_ITEM', payload: { itemId: item.id, quantity: 1 } });
-                          if (res.success) {
-                            addNarrative('user', `Je consomme : ${item.name}.`);
-                            addNarrative('model', `Vous avez consommé ${item.name}. Cela a restauré une partie de vos constantes vitales.`);
-                          } else {
-                            addNarrative('model', `Impossible de consommer ${item.name}. ${res.error || ''}`);
-                          }
-                        }}
-                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-[10px] font-bold rounded shadow-sm transition-colors cursor-pointer"
-                        title="Consommer"
-                      >
-                        Utiliser
-                      </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        const { addNarrative } = useGameStore.getState();
-                        addNarrative('user', `J'examine : ${item.name}.`);
-                        addNarrative('model', `[Analyse] ${item.name}\nCatégorie : ${item.category}\nLieu actuel : ${item.location === 'appartement' ? 'Dans le studio' : 'Sur vous'}\nDescription : ${item.description || 'Aucune description particulière.'}`);
-                      }}
-                      className="px-2 py-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-slate-200 text-[10px] font-bold rounded shadow-sm transition-colors cursor-pointer"
-                      title="Examiner l'objet"
-                    >
-                      Examiner
-                    </button>
-                  </div>
                 </div>
               </div>
             );
