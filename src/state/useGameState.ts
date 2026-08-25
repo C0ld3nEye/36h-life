@@ -184,8 +184,8 @@ export const INITIAL_STATE: GameState = {
       id: 'loc-appartement',
       name: 'Mon Appartement (Studio principal)',
       category: 'domicile',
-      planetOrSystem: 'Terre (Système Solaire)',
-      city: 'Néo-Paris',
+      planetOrSystem: 'Aethelis (Planète à cycle de 36h)',
+      city: 'Cité de Saint-Michel',
       district: 'Quartier Résidentiel Saint-Michel',
       description: 'Un studio lumineux de 28m² sous les toits, avec une kitchenette bien équipée, un coin salon-bureau, une salle d\'eau et un lit douillet près de la baie vitrée.',
       keyFeatures: ['Kitchenette fonctionnelle', 'Bureau de travail & terminal', 'Lit confortable', 'Salle de bain avec douche'],
@@ -200,8 +200,8 @@ export const INITIAL_STATE: GameState = {
       id: 'loc-cafe-lumina',
       name: 'Bistro & Terrasse Néo-Lumina',
       category: 'commerce',
-      planetOrSystem: 'Terre (Système Solaire)',
-      city: 'Néo-Paris',
+      planetOrSystem: 'Aethelis (Planète à cycle de 36h)',
+      city: 'Cité de Saint-Michel',
       district: 'Quartier Résidentiel Saint-Michel',
       description: 'Un bistrot chaleureux et animé avec terrasse vitrée chauffée et bar à café torréfié artisanal. Le lieu idéal pour croiser des riverains ou travailler au calme.',
       keyFeatures: ['Café aromatique', 'Terrasse panoramique', 'Réseau haut débit gratuit', 'Plats du jour abordables'],
@@ -218,8 +218,8 @@ export const INITIAL_STATE: GameState = {
       id: 'loc-hub-transport',
       name: 'Gare Centrale & Spatioport Fluvial',
       category: 'lieu_clef',
-      planetOrSystem: 'Terre (Système Solaire)',
-      city: 'Néo-Paris',
+      planetOrSystem: 'Aethelis (Planète à cycle de 36h)',
+      city: 'Cité de Saint-Michel',
       district: 'Centre Urbain & Plateforme Multimodale',
       description: 'Immense dôme de verre et d\'acier régulant les monorails à sustentation magnétique, les navettes atmosphériques régionales et le terminal des navettes suborbitales vers les stations en orbite.',
       keyFeatures: ['Monorails Inter-Quartiers', 'Navettes Régionales & Suborbitales', 'Bornes de change de crédits', 'Consignes sécurisées'],
@@ -399,62 +399,39 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
 
       case 'PROCESS_OFFLINE_RECAP': {
         const recap = action.payload;
-        const state = get();
-        const newDiaryEntries = [...state.diary];
+        const diaryEntry = recap.diaryEntry && recap.diaryEntry.content
+          ? recap.diaryEntry
+          : (recap.events && recap.events.length > 0 ? {
+              title: "Chronique d'absence",
+              content: `Faits survenus durant la période hors-ligne :\n${recap.events.map(e => `• ${e}`).join('\n')}`,
+              category: 'absence' as const,
+              mood: 'Reposé',
+              milestone: false
+            } : undefined);
 
-        if (recap.diaryEntry && recap.diaryEntry.content) {
-          newDiaryEntries.push({
-            id: `diary-${Math.random().toString(36).substring(7)}`,
-            gameDate: Date.now(),
-            title: recap.diaryEntry.title || "Chronique d'absence & Retour",
-            content: recap.diaryEntry.content,
-            category: recap.diaryEntry.category || 'absence',
-            mood: recap.diaryEntry.mood || 'Reposé & Serein',
-            milestone: recap.diaryEntry.milestone || false,
-            isPersonal: false
-          });
-        } else if (recap.events && recap.events.length > 0) {
-          newDiaryEntries.push({
-            id: `diary-${Math.random().toString(36).substring(7)}`,
-            gameDate: Date.now(),
-            title: "Chronique d'absence",
-            content: `Faits survenus durant la période hors-ligne :\n${recap.events.map(e => `• ${e}`).join('\n')}`,
-            category: 'absence',
-            mood: 'Reposé',
-            milestone: false,
-            isPersonal: false
-          });
-        }
+        const actionResponse: ActionResponse = {
+          isDangerous: false,
+          narrative: `[RÉCAPITULATIF HORS-LIGNE]\n${recap.narrativeRecap || "Pendant votre absence, la cité a continué de vivre."}`,
+          choices: recap.choices,
+          vitalsImpact: recap.vitalsImpact,
+          moneyImpact: recap.moneyImpact,
+          inventoryUpdates: recap.inventoryUpdates,
+          newCharacters: recap.newCharacters,
+          newLocations: recap.newLocations,
+          updatedCharacters: recap.updatedCharacters,
+          updatedLocations: recap.updatedLocations,
+          newAgendaEvents: recap.newAgendaEvents,
+          updatedAgendaEvents: recap.updatedAgendaEvents,
+          newPlotLeads: recap.newPlotLeads,
+          updatedPlotLeads: recap.updatedPlotLeads,
+          newRumors: recap.newRumors,
+          newMessages: recap.newMessages,
+          activePlotHooks: recap.activePlotHooks,
+          episodicMemory: recap.episodicMemory,
+          diaryEntry: diaryEntry
+        };
 
-        const narrativeRecap = recap.narrativeRecap || "Pendant votre absence, la cité a continué de vivre.";
-        set({
-          diary: newDiaryEntries,
-          narrativeHistory: [
-            ...state.narrativeHistory,
-            { role: 'model', content: `[RÉCAPITULATIF HORS-LIGNE]\n${narrativeRecap}`, timestamp: Date.now() }
-          ],
-          choices: sanitizeChoices(recap.choices || state.choices),
-          lastUpdateTime: Date.now()
-        });
-
-        if (recap.vitalsImpact) {
-          get().updateVitals(recap.vitalsImpact);
-        }
-        if (recap.inventoryUpdates && recap.inventoryUpdates.length > 0) {
-          recap.inventoryUpdates.forEach(up => {
-            get().dispatchGameAction({
-              type: 'MOVE_ITEM',
-              payload: { itemId: up.id || '', targetLocation: up.location || 'personnage' }
-            });
-          });
-        }
-
-        // Evaluate game status after recap
-        const statusEval = DeterministicRulesEngine.evaluateGameStatus(get());
-        if (statusEval.status !== 'active') {
-          set({ gameStatus: statusEval.status, epilogueSummary: statusEval.reason });
-        }
-
+        get().processActionResponse(actionResponse);
         return { success: true };
       }
 
@@ -1253,21 +1230,11 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
             }
           });
         }
-      } else if (res.durationMinutes && res.durationMinutes > 0 && res.taskSummary && res.taskSummary !== activeTask.description) {
-        const realMinutes = res.durationMinutes / GAME_TIME_MULTIPLIER;
-        set({
-          currentTask: {
-            id: Math.random().toString(36).substr(2, 9),
-            description: res.taskSummary,
-            startTimeReal: Date.now(),
-            endTimeReal: Date.now() + (realMinutes * 60 * 1000),
-            durationMinutes: res.durationMinutes,
-            paused: false,
-            lastInteractionTimeReal: Date.now()
-          }
-        });
       }
-    } else if (res.durationMinutes && res.durationMinutes > 0 && res.narrative) {
+    } else if (res.durationMinutes && res.durationMinutes >= 15) {
+      // 15-Minute Threshold Rule:
+      // < 15 minutes: The action completes immediately in the narrative while time continues to flow strictly in real-time (no artificial time jumps, no blocking task).
+      // >= 15 minutes: Creates a Long Task with real-time countdown timer.
       const realMinutes = res.durationMinutes / GAME_TIME_MULTIPLIER;
       const fallbackSummary = res.taskSummary || (res.narrative ? (res.narrative.split(/[\n.!?,]/)[0].substring(0, 35).trim() + '...') : 'Activité en cours');
       set({

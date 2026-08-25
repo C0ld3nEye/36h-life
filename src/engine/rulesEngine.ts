@@ -82,6 +82,37 @@ export class DeterministicRulesEngine {
         };
         autoCorrected = true;
       }
+
+      // Autopilot offline mode financial protection
+      if (raw.narrative && raw.narrative.includes('[RÉCAPITULATIF HORS-LIGNE]')) {
+        const mode = currentState.autopilotMode || 'normal';
+        if (mode === 'prudent' && (checkingDelta < 0 || savingsDelta < 0)) {
+          violations.push("Mode prudent actif : dépenses en absence strictement interdites.");
+          validated.moneyImpact = {
+            checkingDelta: 0,
+            savingsDelta: 0,
+            debtsDelta: 0,
+            reason: "Dépense bloquée par le mode prudent"
+          };
+          autoCorrected = true;
+        } else if (mode === 'normal' && checkingDelta < -10) {
+          violations.push("Mode normal actif : dépenses en absence plafonnées à 10€ maximum.");
+          validated.moneyImpact = {
+            ...validated.moneyImpact,
+            checkingDelta: -10,
+            reason: `${raw.moneyImpact.reason || 'Dépenses courantes'} (Plafonné à 10€ en mode normal)`
+          };
+          autoCorrected = true;
+        } else if (mode === 'curieux' && checkingDelta < -5) {
+          violations.push("Mode curieux actif : dépenses en absence plafonnées à 5€.");
+          validated.moneyImpact = {
+            ...validated.moneyImpact,
+            checkingDelta: -5,
+            reason: `${raw.moneyImpact.reason || 'Petite dépense'} (Plafonné à 5€ en mode curieux)`
+          };
+          autoCorrected = true;
+        }
+      }
     }
 
     // --- 2. INVENTORY RULE VALIDATION ---
@@ -135,15 +166,18 @@ export class DeterministicRulesEngine {
     let vitalsChangesAllowed = true;
     const sanitizedVitals = { ...(raw.vitalsImpact || {}) };
 
-    // Safety net: if food items were consumed with quantityDelta < 0, ensure hunger is replenished
+    // Safety net: if food/drink items were consumed with quantityDelta < 0, ensure hunger is replenished
     const consumedFood = (validated.inventoryUpdates || []).filter(u => 
-      (u.quantityDelta || 0) < 0 && /(oeuf|œuf|omelette|pâte|pasta|pain|repas|aliment|nourriture|café|plat|sauce)/i.test(u.name || '')
+      (u.quantityDelta || 0) < 0 && /(oeuf|œuf|omelette|pâte|pasta|pain|repas|aliment|nourriture|café|plat|sauce|beurre|croissant|pomme|fruit|sandwich|eau|boisson)/i.test(u.name || '')
     );
     if (consumedFood.length > 0 && (sanitizedVitals.hunger === undefined || sanitizedVitals.hunger <= 0)) {
-      const isLargeMeal = consumedFood.some(u => Math.abs(u.quantityDelta || 0) >= 3 || /(omelette|pâte|pasta|plat|repas)/i.test(u.name || ''));
-      sanitizedVitals.hunger = isLargeMeal ? 70 : 50;
+      const isLargeMeal = consumedFood.some(u => Math.abs(u.quantityDelta || 0) >= 2 || /(omelette|pâte|pasta|plat|repas|sandwich)/i.test(u.name || '')) || consumedFood.length >= 2;
+      sanitizedVitals.hunger = isLargeMeal ? 75 : 45;
       if (sanitizedVitals.mood === undefined || sanitizedVitals.mood <= 0) {
-        sanitizedVitals.mood = 5;
+        sanitizedVitals.mood = 8;
+      }
+      if (sanitizedVitals.energy === undefined || sanitizedVitals.energy <= 0) {
+        sanitizedVitals.energy = 5;
       }
     }
 
