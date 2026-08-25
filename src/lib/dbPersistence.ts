@@ -100,18 +100,10 @@ export function mergeGameStates(local: any, remote: any): any {
     });
   }
 
-  // 6. Merge Inventory (union by id or name+location)
-  const mergedInventory = [...(primary.inventory || [])];
-  const invKeys = new Set(mergedInventory.map(i => `${i.name}_${i.location}`));
-  if (Array.isArray(secondary.inventory)) {
-    secondary.inventory.forEach((i: any) => {
-      const key = `${i.name}_${i.location}`;
-      if (!invKeys.has(key)) {
-        invKeys.add(key);
-        mergedInventory.push(i);
-      }
-    });
-  }
+  // 6. Authoritative Inventory (Primary state is authoritative; consumed/renamed items must not be resurrected)
+  const mergedInventory = Array.isArray(primary.inventory) 
+    ? [...primary.inventory] 
+    : (Array.isArray(secondary.inventory) ? [...secondary.inventory] : []);
 
   // 7. Merge Agenda
   const mergedAgenda = [...(primary.agenda || [])];

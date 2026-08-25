@@ -2,6 +2,7 @@ import {
   GameState, ActionResponse, InventoryItem, 
   InventoryUpdate, GameStatus, GameAction 
 } from '../types';
+import { findMatchingInventoryItemIndex } from '../lib/utils';
 
 export interface ValidatedRuleOutcome {
   validatedResponse: ActionResponse;
@@ -110,42 +111,38 @@ export class DeterministicRulesEngine {
 
       for (const update of raw.inventoryUpdates) {
         if (!update.name) continue;
-        const targetNameLower = update.name.trim().toLowerCase();
-        const existingItem = currentInv.find(i => 
-          (update.id && i.id === update.id) ||
-          (i.name.trim().toLowerCase() === targetNameLower && i.location === (update.location || 'personnage'))
+        const matchIdx = findMatchingInventoryItemIndex(
+          currentInv,
+          update.name,
+          update.id,
+          update.location
         );
+        const existingItem = matchIdx !== -1 ? currentInv[matchIdx] : undefined;
 
         if (update.quantityDelta < 0) {
           if (!existingItem) {
-            violations.push(`Tentative de retrait de l'objet "${update.name}" non présent dans l'inventaire.`);
+            violations.push(`Tentative de retrait de l'objet "${update.name}" non trouvé dans l'inventaire.`);
             autoCorrected = true;
             continue;
           }
 
-          const availableQty = existingItem.quantity || 1;
-          const removalQty = Math.abs(update.quantityDelta);
-
-          if (removalQty > availableQty) {
-            violations.push(`Tentative de retrait de ${removalQty}x "${update.name}" alors que seulement ${availableQty}x sont possédés.`);
-            sanitizedUpdates.push({
-              ...update,
-              quantityDelta: -availableQty
-            });
-            autoCorrected = true;
-          } else {
-            sanitizedUpdates.push(update);
-          }
+          // If item exists, ensure we target its exact ID and location for the state update
+          sanitizedUpdates.push({
+            ...update,
+            id: existingItem.id,
+            name: existingItem.name,
+            location: existingItem.location
+          });
         } else if (update.quantityDelta > 0) {
           sanitizedUpdates.push({
-            id: update.id || `item-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-            name: update.name.trim(),
-            category: update.category || 'divers',
+            id: existingItem?.id || update.id || `item-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            name: existingItem ? existingItem.name : update.name.trim(),
+            category: update.category || existingItem?.category || 'divers',
             quantityDelta: Math.min(99, Math.max(1, update.quantityDelta)),
-            location: update.location || 'personnage',
-            description: update.description,
-            freshness: update.freshness,
-            consumable: update.consumable ?? false
+            location: update.location || existingItem?.location || 'personnage',
+            description: update.description || existingItem?.description,
+            freshness: update.freshness || existingItem?.freshness,
+            consumable: update.consumable ?? existingItem?.consumable ?? false
           });
         }
       }
@@ -155,9 +152,21 @@ export class DeterministicRulesEngine {
 
     // --- 3. VITALS & MINDSET RULE VALIDATION ---
     let vitalsChangesAllowed = true;
-    if (raw.vitalsImpact) {
-      const sanitizedVitals = { ...raw.vitalsImpact };
+    const sanitizedVitals = { ...(raw.vitalsImpact || {}) };
 
+    // Safety net: if food items were consumed with quantityDelta < 0, ensure hunger is replenished
+    const consumedFood = (validated.inventoryUpdates || []).filter(u => 
+      (u.quantityDelta || 0) < 0 && /(oeuf|œuf|omelette|pâte|pasta|pain|repas|aliment|nourriture|café|plat|sauce)/i.test(u.name || '')
+    );
+    if (consumedFood.length > 0 && (sanitizedVitals.hunger === undefined || sanitizedVitals.hunger <= 0)) {
+      const isLargeMeal = consumedFood.some(u => Math.abs(u.quantityDelta || 0) >= 3 || /(omelette|pâte|pasta|plat|repas)/i.test(u.name || ''));
+      sanitizedVitals.hunger = isLargeMeal ? 70 : 50;
+      if (sanitizedVitals.mood === undefined || sanitizedVitals.mood <= 0) {
+        sanitizedVitals.mood = 5;
+      }
+    }
+
+    if (raw.vitalsImpact || consumedFood.length > 0) {
       if (sanitizedVitals.mindset !== undefined) {
         sanitizedVitals.mindset = Math.max(-25, Math.min(25, sanitizedVitals.mindset));
       }

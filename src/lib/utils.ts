@@ -400,3 +400,136 @@ export function getQualitativeAge(ageInput?: string | number): string {
   return "Senior";
 }
 
+/**
+ * French word to number dictionary
+ */
+const FRENCH_NUMBER_WORDS: Record<string, number> = {
+  "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,
+  "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10, "onze": 11,
+  "douze": 12, "treize": 13, "quatorze": 14, "quinze": 15, "seize": 16,
+  "vingt": 20, "demi": 1, "demie": 1
+};
+
+/**
+ * Extracts the exact quantity of ingredients mentioned in user action or text
+ * (e.g., "omelette avec 4 oeufs" -> 4, "deux tranches" -> 2)
+ */
+export function extractIngredientQuantity(text: string, itemKeywords: string[]): number {
+  if (!text) return 1;
+  const lower = text.toLowerCase();
+  
+  const keywordsPattern = itemKeywords.join('|');
+  const numberWordsPattern = Object.keys(FRENCH_NUMBER_WORDS).join('|');
+  
+  // 1. Explicit digits pattern: e.g. "4 oeufs", "avec 4 oeufs", "4 de mes oeufs"
+  const digitRegex = new RegExp(`(?:avec|de|faire|cuisiner|utiliser|prendre|casser|battre)?\\s*(\\d+)\\s*(?:gross?es?|petit(?:es?)|beaux|belles)?\\s*(?:${keywordsPattern})`, 'i');
+  const digitMatch = lower.match(digitRegex);
+  if (digitMatch && digitMatch[1]) {
+    const qty = parseInt(digitMatch[1], 10);
+    if (!isNaN(qty) && qty > 0) return qty;
+  }
+
+  // 2. French word numbers: e.g. "quatre oeufs", "deux oeufs"
+  const wordRegex = new RegExp(`(?:avec|de|faire|cuisiner|utiliser|prendre|casser|battre)?\\s*(${numberWordsPattern})\\s*(?:gross?es?|petit(?:es?)|beaux|belles)?\\s*(?:${keywordsPattern})`, 'i');
+  const wordMatch = lower.match(wordRegex);
+  if (wordMatch && wordMatch[1] && FRENCH_NUMBER_WORDS[wordMatch[1]]) {
+    return FRENCH_NUMBER_WORDS[wordMatch[1]];
+  }
+
+  // 3. Fallbacks for specific terms like "omelette" without explicit count (default standard omelette = 2 eggs)
+  if (itemKeywords.some(k => /oeuf|œuf/i.test(k))) {
+    if (/omelette/i.test(lower)) {
+      return 2;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * Normalizes item names for fuzzy inventory matching (removes accents, ligatures, packaging, counts)
+ */
+export function normalizeItemSearchKey(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae")
+    .replace(/\b(?:boite\s+de|boite\s+d'|boite\s+d’|paquet\s+de|paquet\s+d'|paquet\s+d’|bocal\s+de|bocal\s+d'|bocal\s+d’|pack\s+de|pack\s+d'|pack\s+d’|bouteille\s+de|bouteille\s+d'|bouteille\s+d’|sachet\s+de|portion\s+de|lot\s+de|tranche\s+de|morceau\s+de|bocal|bouteille|panier\s+de|pack|gourde\s+d'|gourde\s+de)\b/gi, "")
+    .replace(/\b(?:fermiers?|artisanals?|frais|fraiche|fraiches|secs?|moulu|torrefie|nature|isotherme|filtree)\b/gi, "")
+    .replace(/[0-9]+(?:\s*g|\s*kg|\s*cl|\s*l|\s*ml|\s*x)?/gi, "")
+    .replace(/[^a-z0-9]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Finds the best matching item in inventory by ID, exact name, or fuzzy/ingredient match across locations
+ */
+export function findMatchingInventoryItemIndex(
+  inventory: Array<{ id: string; name: string; location?: string; quantity: number }>,
+  targetName: string,
+  targetId?: string,
+  preferredLocation?: string
+): number {
+  if (!inventory || inventory.length === 0) return -1;
+
+  // 1. Exact ID match
+  if (targetId) {
+    const idIdx = inventory.findIndex(i => i.id === targetId);
+    if (idIdx !== -1) return idIdx;
+  }
+
+  const cleanTarget = targetName.trim().toLowerCase();
+  const normTarget = normalizeItemSearchKey(targetName);
+
+  // 2. Exact name + exact location match
+  if (preferredLocation) {
+    const exactLocIdx = inventory.findIndex(i => 
+      i.name.trim().toLowerCase() === cleanTarget && i.location === preferredLocation
+    );
+    if (exactLocIdx !== -1) return exactLocIdx;
+  }
+
+  // 3. Exact name across any location
+  const exactAnyIdx = inventory.findIndex(i => i.name.trim().toLowerCase() === cleanTarget);
+  if (exactAnyIdx !== -1) return exactAnyIdx;
+
+  // 4. Normalized key matching (preferred location first, then any)
+  const candidateScores = inventory.map((item, idx) => {
+    const cleanItemName = item.name.trim().toLowerCase();
+    const normItemName = normalizeItemSearchKey(item.name);
+    
+    let score = 0;
+    if (preferredLocation && item.location === preferredLocation) {
+      score += 15;
+    }
+
+    if (normItemName === normTarget && normTarget.length > 0) {
+      score += 100;
+    } else if (normTarget.length > 2 && (normItemName.includes(normTarget) || normTarget.includes(normItemName))) {
+      score += 60;
+    } else {
+      // Word overlap (e.g. "oeufs" in "boite de 6 oeufs")
+      const targetWords = normTarget.split(" ").filter(w => w.length > 2);
+      const itemWords = normItemName.split(" ").filter(w => w.length > 2);
+      const matches = targetWords.filter(tw => itemWords.some(iw => iw.includes(tw) || tw.includes(iw)));
+      if (matches.length > 0) {
+        score += matches.length * 30;
+      }
+    }
+
+    return { idx, score };
+  });
+
+  candidateScores.sort((a, b) => b.score - a.score);
+  if (candidateScores.length > 0 && candidateScores[0].score >= 25) {
+    return candidateScores[0].idx;
+  }
+
+  return -1;
+}
+
+

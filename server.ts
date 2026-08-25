@@ -1147,7 +1147,11 @@ app.post('/api/action', async (req, res) => {
       .join(', ');
 
     const actionLower = (action || '').toLowerCase();
-    const isTaskCompletion = /(?:\[tâche\s+(?:achevée|terminée)\]|tâche\s+(?:achevée|terminée)|action\s+achevée|fin\s+de\s+tâche)/i.test(actionLower);
+    const isExplicitTaskEndIntent = (
+      /(?:\[tâche\s+(?:achevée|terminée)\]|tâche\s+(?:achevée|terminée)|action\s+achevée|fin\s+de\s+tâche)/i.test(actionLower) ||
+      (Boolean(state.currentTask) && /(?:j'ai\s+fini|j'ai\s+terminé|je\s+termine|je\s+finis|je\s+conclus|conclure|terminer\s+le\s+service|finir\s+le\s+shift|quitter\s+le\s+poste|partir\s+du\s+travail|rentrer\s+chez\s+moi|m'en\s+aller|je\s+m'en\s+vais|je\s+m'arrête|arrêter\s+la\s+tâche)/i.test(actionLower))
+    );
+    const isTaskCompletion = isExplicitTaskEndIntent;
 
     let taskContext = "";
     if (isTaskCompletion) {
@@ -1314,22 +1318,20 @@ The player attempts to do: "${action}"
 CRITICAL NARRATIVE & SYSTEM RULES:
 1. DANGEROUS ACTIONS: If the action is extremely dangerous, illegal, or fatal, and 'force' is false (current force: ${force}), set 'isDangerous': true and write a clear 'dangerWarning'. Do not provide narrative or impacts.
 
-2. DYNAMISME NARRATIF, RELANCE CONCRÈTE & FIN DES CLAUSES DE STYLE MOULES :
-   - Écris la 'narrative' en français vivant, rythmé, percutant et incarné à la 2e personne ("Vous...").
-   - ⚡ PROHIBITION DES PHRASES DE CONCLUSION PLATES ET CONTEMPLATIVES :
-     * 🛑 INTERDICTION FORMELLE DE TERMINER LES MESSAGES PAR DES FORMULES DE REMPLISSAGE DU STYLE :
-       ❌ "L'atmosphère de la terrasse est baignée d'une douce quiétude, tandis que les passants vaquent à leurs occupations sous la clarté éclatante..."
-       ❌ "Votre installation dans le quartier prend une tournure de plus en plus concrète..."
-       ❌ "Le temps s'écoule paisiblement au rythme du cycle..."
-     * Ces conclusions molles et contemplatives tuent le rythme et le plaisir de jeu !
-   - 🎣 RÈGLE DE L'ACCROCHE FINALE (RELANCE NARRATIVE & HOOK) :
-     * CHAQUE message narratif DOIT SE TERMINER par une ACCROCHE VIVANTE qui suscite immédiatement l'envie d'agir ou de répondre :
-       ✅ Une question posée directement par le PNJ qui attend votre réaction.
-       ✅ Un détail insolite, un bruit soudain, une silhouette aperçue, une annonce audio, une notification qui sonne sur votre communicateur.
-       ✅ Un geste d'un interlocuteur (ex: Léo plie son carnet, vous tend un papier, jette un regard vers la rue, tapote sur la table).
-       ✅ Une opportunité immédiate ou un choix tangible qui s'offre sous vos yeux.
-   - ⚡ PROGRESSION DRAMATIQUE & MICRO-ÉVÉNEMENTS (FAIS BOUGER LES CHOSES) :
-     * 🛑 INTERDICTION DU SURPLACE : Ne répète jamais ce qui vient d'être dit sans apporter du neuf. Introduis de l'inattendu, de la personnalité, de l'humour, des anecdotes insolites de la cité, des tensions ou des pistes d'aventure.
+2. DYNAMISME NARRATIF, IMMERSION QUOTIDIENNE & RESPECT DU TON RÉALISTE :
+   - Écris la 'narrative' en français vivant, sobre, percutant et incarné à la 2e personne ("Vous...").
+   - 🛑 INTERDICTION ABSOLUE DES CLIFFHANGERS FORCÉS & SUSPENSE ARTIFICIEL :
+     * Quand le joueur effectue une action calme ou ordinaire (rédiger son CV, cuisiner, manger, faire ses comptes, faire le ménage, se reposer, marcher tranquillement, regarder son terminal) :
+       ❌ NE JAMAIS INVENTER de pas suspects qui s'arrêtent devant la porte, de bruits de clochette angoissants, de silhouettes menaçantes, de coups violents ou d'intrusions soudaines !
+       ❌ Ces faux rebondissements systématiques brisent la cohérence et l'immersion.
+     * Conclus simplement et logiquement l'étape en cours avec un détail concret (ex: la mise en page du CV prête à l'envoi, l'odeur réconfortante de l'omelette dorée à point dans l'assiette, le calme du studio).
+   - 🎣 RELANCE NATURELLE (PAS DE SURJEU) :
+     * La fin de chaque message doit simplement ouvrir sur la suite logique de la vie du joueur :
+       ✅ Un interlocuteur qui attend sa réponse dans un dialogue.
+       ✅ La possibilité de passer à l'étape suivante (ex: poster la candidature, déguster son plat, sortir).
+       ✅ Un détail sensoriel ordinaire du quartier ou de l'appartement.
+   - ⚡ PROGRESSION DRAMATIQUE & MICRO-ÉVÉNEMENTS :
+     * 🛑 INTERDICTION DU SURPLACE : Ne répète jamais ce qui vient d'être dit sans apporter du neuf. Introduis de la personnalité, de l'humour, des anecdotes insolites de la cité ou des pistes d'aventure LORSQUE cela fait sens dans le contexte.
    - 🚫 INTERDICTION FORMELLE DE PARLER DE L'HEURE NUMÉRIQUE DANS LA NARRATION :
      * Ne mentionne JAMAIS l'heure chiffrée (ex: "Il est 14h00", "L'horloge indique 28:00", "À 10h15...") dans le texte narratif.
    - 🚫 INTERDICTION DE LA REDONDANCE SUR LA LUMIÈRE & LA CLARTÉ :
@@ -1408,7 +1410,13 @@ CRITICAL NARRATIVE & SYSTEM RULES:
 8. GESTION DE L'INVENTAIRE & CUISINE / CONSOMMATION ('inventoryUpdates') :
    - 🍳 RÈGLE ABSOLUE SUR LA CUISINE & REPAS À L'APPARTEMENT :
      * 🛑 IL EST STRICTEMENT INTERDIT de préparer un plat, cuisiner ou manger à la maison si le joueur n'a PAS les ingrédients requis dans l'inventaire de l'appartement (frigo/placards) ou sur lui !
-     * Si le joueur veut cuisiner (ex: faire des pâtes, une omelette, un café) et que les ingrédients sont présents : décris la préparation, applique 'vitalsImpact.hunger' / 'vitalsImpact.energy', améliore la compétence Cuisine dans 'skillsImpact', ET DÉDUIS LES INGRÉDIENTS DANS 'inventoryUpdates' avec 'quantityDelta: -1' (ex: { name: 'Paquet de pâtes (500g)', quantityDelta: -1, location: 'appartement' }).
+     * Si le joueur veut cuisiner (ex: faire des pâtes, une omelette, un café) et que les ingrédients sont présents :
+       - Décris la préparation, applique 'vitalsImpact.hunger' / 'vitalsImpact.energy', améliore la compétence Cuisine dans 'skillsImpact'.
+       - ⚡ DÉDUIS PRÉCISÉMENT LE NOMBRE EXACT D'UNITÉS CONSOMMÉES DANS 'inventoryUpdates' :
+         * Si le joueur demande une omelette de 4 œufs : déduis 'quantityDelta: -4' sur l'élément des œufs.
+         * Si le joueur demande 2 œufs : déduis 'quantityDelta: -2'.
+         * Si le joueur demande 3 tranches de pain : déduis 'quantityDelta: -3'.
+         * Ne mets JAMAIS une valeur générique de -1 ou -2 si le joueur a expressément précisé un nombre !
      * Si le joueur veut cuisiner alors que le frigo/placards sont vides ou qu'il manque d'ingrédients essentiels : la narration DOIT constater que les placards/frigo sont vides, proposer d'aller faire des courses au supermarché ou manger dehors, et NE PAS augmenter la satiété !
    - 🛒 ACHATS & RÉCUPÉRATION D'OBJETS :
      * Dès que le joueur fait des courses, achète des vivres, trouve ou reçoit un objet, une clé ou un outil :
@@ -1430,7 +1438,12 @@ CRITICAL NARRATIVE & SYSTEM RULES:
     - Pour les actions longues ou soutenues (sommeil, travail, grand trajet, cuisine, grand ménage) : renseigne 'durationMinutes' et décris uniquement la première étape / mise en route. Le joueur vivra le reste de l'action au fil du temps réel.
     - Pour les actions brèves ou instantanées (regarder, poser une question, ouvrir un tiroir, boire un verre) : ne mets pas de durée ('durationMinutes' vide ou 0).
 
-11. Output in strictly valid JSON matching the schema.
+11. SYNCHRONISATION ARCHIVES, PISTES & RUMEURS, ET COMMUNICATEUR ('newPlotLeads', 'newRumors', 'newMessages', 'newAgendaEvents') :
+    - 🕵️ INTRIGUES, OFFRES CLANDESTINES & PISTES : Dès qu'une proposition de mission, un message anonyme, une rumeur urbaine ou un secret est évoqué, TU DOIS OBLIGATOIREMENT créer ou mettre à jour la piste dans 'newPlotLeads' ou 'newRumors'.
+    - 📱 COMMUNICATEUR : Dès qu'un message ou SMS arrive sur le communicateur du joueur, renseigne 'newMessages' avec l'expéditeur, le contenu et des options de réponse.
+    - 📅 RENDEZ-VOUS : Dès qu'un point de rencontre ou une heure de rendez-vous est mentionné, inscris immédiatement l'événement dans 'newAgendaEvents' avec l'heure calculée !
+
+12. Output in strictly valid JSON matching the schema.
     `;
 
     let responseText = "";
@@ -1547,9 +1560,11 @@ CRITICAL NARRATIVE & SYSTEM RULES:
       data.vitalsImpact = {};
     }
 
-    const isEating = /(mang|repas|dîn|déjeun|petit-d|nourri|aliment|snack|sandwich|croissant|pain|boir|café|thé|plat|cuisin|restau|bistrot|goût|festin|estomac)/i.test(actionLower);
-    const isSleeping = /(dorm|sommeil|siest|repos|couch|lit|nuit|m'endorm|m’endorm)/i.test(actionLower);
-    const isWashing = /(douch|lav|bain|toilet|savon|bross)/i.test(actionLower);
+    const combinedActionAndNarrative = (actionLower + ' ' + (data.narrative || '')).toLowerCase();
+    const isEating = /(mang|repas|dîn|déjeun|petit-d|nourri|aliment|snack|sandwich|croissant|pain|boir|café|thé|plat|cuisin|restau|bistrot|goût|festin|estomac|oeuf|œuf|omelette|pâte|pasta|spaghetti|tartine|fromage|viande|soupe|salade|délicieu|avaler|dégust|savoure)/i.test(combinedActionAndNarrative) ||
+      Boolean(data.inventoryUpdates && data.inventoryUpdates.some(u => (u.quantityDelta || 0) < 0 && /(nourriture|aliment|consommable|divers)/i.test(u.category || '')));
+    const isSleeping = /(dorm|sommeil|siest|repos|couch|lit|nuit|m'endorm|m’endorm)/i.test(combinedActionAndNarrative);
+    const isWashing = /(douch|lav|bain|toilet|savon|bross)/i.test(combinedActionAndNarrative);
 
     if (data.vitalsImpact.hunger && data.vitalsImpact.hunger > 0 && !isEating) {
       data.vitalsImpact.hunger = 0;
@@ -1572,16 +1587,18 @@ CRITICAL NARRATIVE & SYSTEM RULES:
 
     // Dynamic hunger scaling based on user eating phrasing
     if (isEating) {
-      const isFeast = /(festin|remplir\s+(?:l'|mon\s+)?estomac|cal(?:er|é)\s+(?:l'|le\s+|mon\s+)?ventre|gargantuesque|copieu|banquet|mange\s+beaucoup|n'en\s+plus\s+pouvoir|rassasi)/i.test(actionLower);
-      const isQuickSnack = /(rapide|vite|croque|sur\s+le\s+pouce|grignot|petite?\s+faim|encas|collation|biscuit|pomme|pain\s+seul|café|thé)/i.test(actionLower);
+      const isFeast = /(festin|remplir\s+(?:l'|mon\s+)?estomac|cal(?:er|é)\s+(?:l'|le\s+|mon\s+)?ventre|gargantuesque|copieu|banquet|mange\s+beaucoup|n'en\s+plus\s+pouvoir|rassasi)/i.test(combinedActionAndNarrative);
+      const isQuickSnack = /(rapide|vite|croque|sur\s+le\s+pouce|grignot|petite?\s+faim|encas|collation|biscuit|pomme|pain\s+seul|café|thé)/i.test(combinedActionAndNarrative);
 
       if (isFeast) {
         data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, 95);
+        data.vitalsImpact.mood = Math.max(data.vitalsImpact.mood || 0, 10);
       } else if (isQuickSnack) {
         data.vitalsImpact.hunger = Math.min(Math.max(data.vitalsImpact.hunger || 25, 20), 35);
       } else {
-        // Standard meal
-        data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, 60);
+        // Standard meal (omelette, pasta, dish)
+        data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, 65);
+        data.vitalsImpact.mood = Math.max(data.vitalsImpact.mood || 0, 5);
       }
     }
 
@@ -1701,6 +1718,275 @@ CRITICAL NARRATIVE & SYSTEM RULES:
       }
     });
 
+    // Automatic Food & Cooking & Ingredient Consumption Bridge:
+    // When ingredients or food/drinks are prepared, eaten, cooked, or used:
+    // deduce every mentioned item independently and ensure hunger/vitals are updated.
+    const isFoodCookingOrEating = /(?:oeuf|œuf|omelette|pâte|pasta|spaghetti|café|thé|sauce|coulis|tomate|beurre|pain|tartine|fromage|viande|soupe|salade|repas|cuisin|manger|mang|boir|boire|petit-déjeuner|dîner|déjeuner|encas|collation|bocal|placard|frigo|ingrédient|prépar|utilis|verser|ajouter|dégust|savoure)/i.test(actionLower + ' ' + (data.narrative || ''));
+    
+    if (isFoodCookingOrEating && Array.isArray(state.inventory)) {
+      if (!data.inventoryUpdates) data.inventoryUpdates = [];
+      const combinedFoodText = (actionLower + ' ' + (data.narrative || '')).toLowerCase();
+      
+      const frenchNumberMap: Record<string, number> = {
+        "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,
+        "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10, "douze": 12
+      };
+
+      const parseQty = (keywords: string[], defaultQty = 1) => {
+        const kwPattern = keywords.join('|');
+        const numWordsPattern = Object.keys(frenchNumberMap).join('|');
+        
+        // Match explicit digits: e.g. "4 oeufs", "avec 4 oeufs"
+        const digitRegex = new RegExp(`(?:avec|de|faire|cuisiner|utiliser|prendre|casser|battre)?\\s*(\\d+)\\s*(?:gross?es?|petit(?:es?)|beaux|belles)?\\s*(?:${kwPattern})`, 'i');
+        const digitMatch = combinedFoodText.match(digitRegex);
+        if (digitMatch && digitMatch[1]) {
+          const val = parseInt(digitMatch[1], 10);
+          if (!isNaN(val) && val > 0) return val;
+        }
+
+        // Match word numbers: e.g. "quatre oeufs", "deux oeufs"
+        const wordRegex = new RegExp(`(?:avec|de|faire|cuisiner|utiliser|prendre|casser|battre)?\\s*(${numWordsPattern})\\s*(?:gross?es?|petit(?:es?)|beaux|belles)?\\s*(?:${kwPattern})`, 'i');
+        const wordMatch = combinedFoodText.match(wordRegex);
+        if (wordMatch && wordMatch[1] && frenchNumberMap[wordMatch[1]]) {
+          return frenchNumberMap[wordMatch[1]];
+        }
+
+        return defaultQty;
+      };
+
+      // 1. Eggs / Omelette
+      if (/(?:oeuf|œuf|omelette)/i.test(combinedFoodText)) {
+        const eggItem = state.inventory.find(i => /(?:oeuf|œuf)/i.test(i.name));
+        if (eggItem) {
+          const defaultEggQty = /omelette/i.test(combinedFoodText) ? 2 : 1;
+          const eggCount = parseQty(['oeufs?', 'œufs?', 'oeuf', 'œuf'], defaultEggQty);
+          
+          const existingEggUpdateIdx = data.inventoryUpdates.findIndex(u => /(?:oeuf|œuf)/i.test(u.name || ''));
+          if (existingEggUpdateIdx !== -1) {
+            data.inventoryUpdates[existingEggUpdateIdx] = {
+              ...data.inventoryUpdates[existingEggUpdateIdx],
+              id: eggItem.id,
+              name: eggItem.name,
+              quantityDelta: -eggCount,
+              location: eggItem.location || 'appartement'
+            };
+          } else {
+            data.inventoryUpdates.push({
+              id: eggItem.id,
+              name: eggItem.name,
+              quantityDelta: -eggCount,
+              location: eggItem.location || 'appartement'
+            });
+          }
+        }
+      }
+
+      // 2. Pasta
+      if (/(?:pâte|pasta|spaghetti)/i.test(combinedFoodText)) {
+        const pastaItem = state.inventory.find(i => /(?:pâte|pasta)/i.test(i.name));
+        if (pastaItem) {
+          const pastaPortions = parseQty(['pâtes?', 'pastas?', 'portions?', 'paquets?'], 1);
+          const existingUpdateIdx = data.inventoryUpdates.findIndex(u => /(?:pâte|pasta)/i.test(u.name || ''));
+          if (existingUpdateIdx !== -1) {
+            data.inventoryUpdates[existingUpdateIdx].quantityDelta = -pastaPortions;
+          } else {
+            data.inventoryUpdates.push({
+              id: pastaItem.id,
+              name: pastaItem.name,
+              quantityDelta: -pastaPortions,
+              location: pastaItem.location || 'appartement'
+            });
+          }
+        }
+      }
+
+      // 3. Tomato sauce / Coulis de tomate / Coulis
+      if (/(?:sauce|coulis|tomate)/i.test(combinedFoodText)) {
+        const sauceItem = state.inventory.find(i => /(?:sauce|coulis|tomate)/i.test(i.name));
+        if (sauceItem) {
+          const existingUpdateIdx = data.inventoryUpdates.findIndex(u => /(?:sauce|coulis|tomate)/i.test(u.name || ''));
+          if (existingUpdateIdx !== -1) {
+            data.inventoryUpdates[existingUpdateIdx] = {
+              ...data.inventoryUpdates[existingUpdateIdx],
+              id: sauceItem.id,
+              name: sauceItem.name,
+              quantityDelta: -1,
+              location: sauceItem.location || 'appartement'
+            };
+          } else {
+            data.inventoryUpdates.push({
+              id: sauceItem.id,
+              name: sauceItem.name,
+              quantityDelta: -1,
+              location: sauceItem.location || 'appartement'
+            });
+          }
+        }
+      }
+
+      // 4. Butter / Beurre
+      if (/(?:beurre)/i.test(combinedFoodText)) {
+        const beurreItem = state.inventory.find(i => /beurre/i.test(i.name));
+        if (beurreItem) {
+          const existingUpdateIdx = data.inventoryUpdates.findIndex(u => /beurre/i.test(u.name || ''));
+          if (existingUpdateIdx === -1) {
+            data.inventoryUpdates.push({
+              id: beurreItem.id,
+              name: beurreItem.name,
+              quantityDelta: -1,
+              location: beurreItem.location || 'appartement'
+            });
+          }
+        }
+      }
+
+      // 5. Coffee
+      if (/(?:café|expresso)/i.test(combinedFoodText)) {
+        const coffeeItem = state.inventory.find(i => /café/i.test(i.name));
+        if (coffeeItem) {
+          const cups = parseQty(['cafés?', 'tasses?', 'capsules?', 'doses?'], 1);
+          const existingUpdateIdx = data.inventoryUpdates.findIndex(u => /café/i.test(u.name || ''));
+          if (existingUpdateIdx !== -1) {
+            data.inventoryUpdates[existingUpdateIdx].quantityDelta = -cups;
+          } else {
+            data.inventoryUpdates.push({
+              id: coffeeItem.id,
+              name: coffeeItem.name,
+              quantityDelta: -cups,
+              location: coffeeItem.location || 'appartement'
+            });
+          }
+        }
+      }
+
+      // 6. Tea
+      if (/(?:thé|infusion)/i.test(combinedFoodText)) {
+        const teaItem = state.inventory.find(i => /(?:thé|infusion)/i.test(i.name));
+        if (teaItem) {
+          const cups = parseQty(['thés?', 'tasses?', 'sachets?'], 1);
+          const existingUpdateIdx = data.inventoryUpdates.findIndex(u => /(?:thé|infusion)/i.test(u.name || ''));
+          if (existingUpdateIdx !== -1) {
+            data.inventoryUpdates[existingUpdateIdx].quantityDelta = -cups;
+          } else {
+            data.inventoryUpdates.push({
+              id: teaItem.id,
+              name: teaItem.name,
+              quantityDelta: -cups,
+              location: teaItem.location || 'appartement'
+            });
+          }
+        }
+      }
+
+      // 7. General fallback: check any other food/beverage in inventory mentioned in text
+      state.inventory.forEach(invItem => {
+        if (!invItem.name || (invItem.category !== 'nourriture' && invItem.category !== 'boisson' && !invItem.consumable)) return;
+        const itemNameLower = invItem.name.toLowerCase();
+        // Check if item's distinctive words are in the action
+        const cleanWords = itemNameLower
+          .replace(/^(?:bo[îi]te|paquet|bocal|pack|bouteille|portion|sachet|lot)\s+de\s+/i, '')
+          .split(/[\s,&]+/)
+          .filter(w => w.length >= 4 && !/^(fermier|artisanal|frais|moulu|sec|morceau)/i.test(w));
+        
+        const isMentioned = cleanWords.some(w => combinedFoodText.includes(w));
+        if (isMentioned) {
+          const alreadyUpdated = data.inventoryUpdates!.some(u => u.id === invItem.id || (u.name && u.name.toLowerCase() === itemNameLower));
+          if (!alreadyUpdated) {
+            data.inventoryUpdates!.push({
+              id: invItem.id,
+              name: invItem.name,
+              quantityDelta: -1,
+              location: invItem.location || 'appartement'
+            });
+          }
+        }
+      });
+
+      // Guarantee hunger & vitality replenishment for cooked/eaten meals:
+      if (!data.vitalsImpact) data.vitalsImpact = {};
+      if (/(?:oeuf|œuf|omelette)/i.test(combinedFoodText)) {
+        const defaultEggQty = /omelette/i.test(combinedFoodText) ? 2 : 1;
+        const count = parseQty(['oeufs?', 'œufs?', 'oeuf', 'œuf'], defaultEggQty);
+        const hungerGain = count >= 4 ? 80 : (count >= 2 ? 60 : 35);
+        data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, hungerGain);
+        data.vitalsImpact.mood = Math.max(data.vitalsImpact.mood || 0, 5);
+      } else if (/(?:pâte|pasta|spaghetti|sauce|coulis|tomate)/i.test(combinedFoodText)) {
+        data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, 70);
+        data.vitalsImpact.mood = Math.max(data.vitalsImpact.mood || 0, 5);
+      } else if (/(?:café|expresso)/i.test(combinedFoodText)) {
+        data.vitalsImpact.energy = Math.max(data.vitalsImpact.energy || 0, 8);
+        data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, 15);
+      } else {
+        data.vitalsImpact.hunger = Math.max(data.vitalsImpact.hunger || 0, 55);
+      }
+    }
+
+    // Automatic Anonymous SMS / Plot Lead / Rendezvous Bridge:
+    // If the narrative contains an incoming anonymous or mysterious SMS/job offer/rendezvous:
+    const narTextFull = (data.narrative || '');
+    const isAnonymousJobOrLead = /(?:recherche\s+profil|mission\s+de\s+nuit|texte\s+anonyme|message\s+anonyme|point\s+de\s+rendez-vous|discrétion\s+exigée|paiement\s+cash|venez\s+seul)/i.test(narTextFull);
+
+    if (isAnonymousJobOrLead) {
+      // 1. Sync Communicateur Messages
+      if (!data.newMessages || data.newMessages.length === 0) {
+        const quoteMatch = narTextFull.match(/[«"“]([^"»”]{20,500})[»"”]/);
+        const msgContent = quoteMatch ? quoteMatch[1] : "Recherche profil polyvalent pour mission de nuit non conventionnelle. Discrétion exigée. Paiement cash immédiat à la clé. Répondez OUI pour fixer un point de rendez-vous discret.";
+        data.newMessages = [{
+          senderId: "contact-anonyme",
+          senderName: "Contact Anonyme",
+          preview: msgContent.length > 50 ? msgContent.substring(0, 47) + '...' : msgContent,
+          content: msgContent,
+          replyOptions: ["OUI", "NON", "Préciser la mission"]
+        }];
+      }
+
+      // 2. Sync Plot Leads in Archives
+      if (!data.newPlotLeads || data.newPlotLeads.length === 0) {
+        data.newPlotLeads = [{
+          title: "Mission nocturne clandestine (Secteur technique)",
+          category: "mystere",
+          status: "actif",
+          qualitativeStage: "Proposition de mission anonyme reçue sur communicateur",
+          clues: [
+            "Message anonyme reçu exigeant discrétion absolue et profil polyvalent.",
+            "Rémunération cash immédiate promise à la clé."
+          ],
+          relatedCharacterIds: [],
+          relatedLocationIds: [],
+          notes: "Un commanditaire anonyme a transmis une offre de mission clandestine dans le secteur technique."
+        }];
+      }
+
+      // 3. Sync Rendezvous in Agenda if location & timer mentioned
+      const isRdvMentioned = /(?:rendez-vous|coin\s+de\s+la\s+rue|avenue\s+des|dans\s+(?:exactement\s+)?(?:\d+|quarante-cinq|trente|vingt|quinze)\s+minutes)/i.test(narTextFull);
+      if (isRdvMentioned && (!data.newAgendaEvents || data.newAgendaEvents.length === 0)) {
+        let offsetMinutes = 45;
+        if (/quarante-cinq|45/i.test(narTextFull)) offsetMinutes = 45;
+        else if (/trente|30/i.test(narTextFull)) offsetMinutes = 30;
+        else if (/quinze|15/i.test(narTextFull)) offsetMinutes = 15;
+        else if (/une\s+heure|60/i.test(narTextFull)) offsetMinutes = 60;
+
+        const currentHour = parseInt(gameTimeInfo.timeStr.split(':')[0], 10) || 12;
+        const currentMin = parseInt(gameTimeInfo.timeStr.split(':')[1], 10) || 0;
+        const totalMinutes = (currentHour * 60 + currentMin + offsetMinutes) % (36 * 60);
+        const targetHour = Math.floor(totalMinutes / 60);
+        const targetMin = totalMinutes % 60;
+        const targetTimeStr = `${String(targetHour).padStart(2, '0')}:${String(targetMin).padStart(2, '0')}`;
+
+        const dayName = daysOfWeek[(gameTimeInfo.dayNumber - 1) % 7] || `Jour ${gameTimeInfo.dayNumber}`;
+        const agendaDateStr = `${dayName} à ${targetTimeStr} (Jour ${gameTimeInfo.dayNumber})`;
+
+        data.newAgendaEvents = [{
+          id: `ev-secret-rdv-${Date.now()}`,
+          title: "Rendez-vous discret - Rue Saint-Michel / Av. des Cèdres",
+          description: "Rendez-vous anonyme pour une mission clandestine dans le secteur technique. Discrétion exigée.",
+          dateGameStr: agendaDateStr,
+          category: 'urgent',
+          completed: false
+        }];
+      }
+    }
+
     // Automatic Contract & Salary Memory Bridge:
     // If the narrative or history talks about employer negotiation / 250 € / prime d'intéressement / job
     const combinedContext = actionLower + ' ' + (data.narrative || '') + ' ' + (state.narrativeHistory.slice(-5).map(h => h.content).join(' '));
@@ -1738,6 +2024,13 @@ CRITICAL NARRATIVE & SYSTEM RULES:
           milestone: true
         };
       }
+    }
+
+    // If task completion was requested, guarantee task termination and open choices
+    if (isTaskCompletion) {
+      data.taskTimeAdjustmentMinutes = -1000;
+      data.durationMinutes = undefined;
+      data.taskSummary = undefined;
     }
 
     // Ensure taskSummary is clean, concise (3-6 words) and never takes the whole narrative

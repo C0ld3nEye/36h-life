@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Package, User, Home, Coffee, Utensils, Sparkles, Wrench, Key, 
-  Smartphone, Shield, FileText
+  Smartphone, Shield, FileText, Trash2, ArrowRightLeft, Check
 } from 'lucide-react';
 import { useGameStore } from '../state/useGameState';
 import { cn } from '../lib/utils';
@@ -54,10 +54,12 @@ function getItemCategoryColor(category?: ItemCategory) {
 }
 
 export function InventoryView({ searchQuery }: { searchQuery: string }) {
-  const { inventory } = useGameStore();
+  const { inventory, dispatchGameAction } = useGameStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'personnage' | 'appartement'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const items = inventory || [];
   const q = searchQuery.toLowerCase().trim();
@@ -89,8 +91,35 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
     { id: 'divers', label: 'Divers' },
   ];
 
+  const handleConsume = (itemId: string, name: string) => {
+    const res = dispatchGameAction({ type: 'CONSUME_ITEM', payload: { itemId, quantity: 1 } });
+    if (res.success) {
+      setActionFeedback(`Consommé : ${name}`);
+      setTimeout(() => setActionFeedback(null), 2500);
+    }
+  };
+
+  const handleMove = (itemId: string, currentLoc: 'personnage' | 'appartement') => {
+    const targetLoc = currentLoc === 'appartement' ? 'personnage' : 'appartement';
+    dispatchGameAction({ type: 'MOVE_ITEM', payload: { itemId, targetLocation: targetLoc } });
+  };
+
+  const handleDelete = (itemId: string, name: string) => {
+    dispatchGameAction({ type: 'DELETE_ITEM', payload: { itemId } });
+    setActionFeedback(`Jeté : ${name}`);
+    setTimeout(() => setActionFeedback(null), 2500);
+  };
+
   return (
     <div className="flex flex-col gap-3 max-w-4xl mx-auto w-full pb-8">
+      {/* Action feedback banner */}
+      {actionFeedback && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs rounded-xl animate-fade-in">
+          <Check className="w-4 h-4" />
+          <span>{actionFeedback}</span>
+        </div>
+      )}
+
       {/* Sub-Tabs: Character (Sur soi) vs Apartment (Frigo & Placards) */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-950/80 p-2 rounded-2xl border border-white/10">
         <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-white/5">
@@ -135,7 +164,7 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
         </div>
 
         <div className="text-[11px] text-slate-400 italic px-2">
-          Géré par l'IA
+          {items.length} objet{items.length > 1 ? 's' : ''} au total
         </div>
       </div>
 
@@ -157,7 +186,7 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
         ))}
       </div>
 
-      {/* Items List (Compact & Fast to scan) */}
+      {/* Items List */}
       {filteredItems.length === 0 ? (
         <div className="text-center py-12 px-4 bg-slate-900/40 rounded-2xl border border-white/5 flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
@@ -180,52 +209,106 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
             const CatIcon = getItemCategoryIcon(item.category);
             const catColors = getItemCategoryColor(item.category);
             const isAtHome = item.location === 'appartement';
+            const isExpanded = expandedItemId === item.id;
+            const isConsumable = item.consumable || item.category === 'nourriture' || item.category === 'boisson' || item.category === 'hygiene';
 
             return (
               <div 
                 key={item.id}
-                className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/[0.03] transition-colors"
+                className="flex flex-col hover:bg-white/[0.02] transition-colors"
               >
-                {/* Left: Icon & Item Name */}
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <div className={cn("p-1.5 rounded-lg shrink-0", catColors.bg)}>
-                    <CatIcon className="w-4 h-4" />
+                <div 
+                  onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                  className="px-3.5 py-2.5 flex items-center justify-between gap-3 cursor-pointer select-none"
+                >
+                  {/* Left: Icon & Item Name */}
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className={cn("p-1.5 rounded-lg shrink-0", catColors.bg)}>
+                      <CatIcon className="w-4 h-4" />
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-slate-200 text-xs sm:text-sm truncate">
+                        {item.name}
+                      </span>
+                      {item.quantity > 1 && (
+                        <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-white/10 shrink-0">
+                          x{item.quantity}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-medium text-slate-200 text-xs sm:text-sm truncate">
-                      {item.name}
-                    </span>
-                    {item.quantity > 1 && (
-                      <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-white/10 shrink-0">
-                        x{item.quantity}
+
+                  {/* Right: Badges */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {item.freshness && (
+                      <span className={cn(
+                        "text-[9px] font-semibold px-1.5 py-0.5 rounded border",
+                        item.freshness === 'frais' && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                        item.freshness === 'perime' && "bg-rose-500/10 text-rose-400 border-rose-500/20",
+                        item.freshness === 'sec' && "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                        item.freshness === 'entame' && "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                      )}>
+                        {item.freshness.toUpperCase()}
                       </span>
                     )}
+
+                    <span className={cn(
+                      "text-[10px] font-medium px-2 py-0.5 rounded-md border",
+                      isAtHome 
+                        ? "bg-sky-500/10 text-sky-300 border-sky-500/20" 
+                        : "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                    )}>
+                      {isAtHome ? "🏠 Studio" : "🎒 Sur moi"}
+                    </span>
                   </div>
                 </div>
 
-                {/* Right: Badges */}
-                <div className="flex items-center gap-2 shrink-0">
-                  {item.freshness && (
-                    <span className={cn(
-                      "text-[9px] font-semibold px-1.5 py-0.5 rounded border",
-                      item.freshness === 'frais' && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-                      item.freshness === 'perime' && "bg-rose-500/10 text-rose-400 border-rose-500/20",
-                      item.freshness === 'sec' && "bg-amber-500/10 text-amber-400 border-amber-500/20",
-                      item.freshness === 'entame' && "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
-                    )}>
-                      {item.freshness.toUpperCase()}
-                    </span>
-                  )}
+                {/* Expanded Action Panel */}
+                {isExpanded && (
+                  <div className="px-3.5 pb-3 pt-1 bg-slate-950/40 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="text-slate-400 text-[11px] leading-relaxed max-w-md">
+                      {item.description || "Aucune description détaillée."}
+                    </div>
 
-                  <span className={cn(
-                    "text-[10px] font-medium px-2 py-0.5 rounded-md border",
-                    isAtHome 
-                      ? "bg-sky-500/10 text-sky-300 border-sky-500/20" 
-                      : "bg-amber-500/10 text-amber-300 border-amber-500/20"
-                  )}>
-                    {isAtHome ? "🏠 Studio" : "🎒 Sur moi"}
-                  </span>
-                </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isConsumable && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConsume(item.id, item.name);
+                          }}
+                          className="px-2.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Utensils className="w-3 h-3" />
+                          <span>Consommer</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMove(item.id, item.location || 'personnage');
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+                        title={isAtHome ? "Prendre sur moi" : "Déposer dans le studio"}
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
+                        <span>{isAtHome ? "Prendre sur moi" : "Ranger au studio"}</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item.id, item.name);
+                        }}
+                        className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-[11px] transition-all cursor-pointer"
+                        title="Jeter l'objet"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

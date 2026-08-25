@@ -6,6 +6,7 @@ import {
 } from '../types';
 import { resetCloudAndLocalData } from '../lib/cloudSync';
 import { DeterministicRulesEngine } from '../engine/rulesEngine';
+import { findMatchingInventoryItemIndex } from '../lib/utils';
 
 import { TimeSlice, createTimeSlice } from './slices/createTimeSlice';
 import { InventorySlice, createInventorySlice } from './slices/createInventorySlice';
@@ -1033,24 +1034,59 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
         const currentInv = [...(state.inventory || [])];
         res.inventoryUpdates!.forEach(update => {
           if (!update.name) return;
-          const targetNameLower = update.name.trim().toLowerCase();
-          const existingIdx = currentInv.findIndex(i => 
-            (update.id && i.id === update.id) ||
-            (i.name.trim().toLowerCase() === targetNameLower && i.location === (update.location || 'personnage'))
+          const matchIdx = findMatchingInventoryItemIndex(
+            currentInv,
+            update.name,
+            update.id,
+            update.location
           );
 
-          if (existingIdx !== -1) {
-            const currentItem = currentInv[existingIdx];
-            const newQty = currentItem.quantity + update.quantityDelta;
-            if (newQty <= 0) {
-              currentInv.splice(existingIdx, 1);
-            } else {
-              currentInv[existingIdx] = {
+          if (matchIdx !== -1) {
+            const currentItem = currentInv[matchIdx];
+            if (update.quantityDelta < 0) {
+              const delta = update.quantityDelta;
+              // Check if item has a count in its name (e.g. "Boîte de 6 œufs fermiers")
+              const countInNameMatch = currentItem.name.match(/^(.*?)(?:de\s+)?(\d+)\s*(œufs?|oeufs?|portions?|tranches?|capsules?|sachets?|biscuits?)(.*?)$/i);
+              
+              if (currentItem.quantity === 1 && countInNameMatch) {
+                const totalUnits = parseInt(countInNameMatch[2], 10);
+                const remainingUnits = totalUnits + delta; // delta is negative
+                if (remainingUnits <= 0) {
+                  currentInv.splice(matchIdx, 1);
+                } else {
+                  const prefix = countInNameMatch[1]?.trim() ? `${countInNameMatch[1].trim()} de ` : '';
+                  const unitWord = (remainingUnits === 1 && /^(?:oeuf|œuf)/i.test(countInNameMatch[3]))
+                    ? (countInNameMatch[3].startsWith('œ') ? 'œuf' : 'oeuf')
+                    : countInNameMatch[3];
+                  const newName = `${prefix}${remainingUnits} ${unitWord}${countInNameMatch[4]}`.replace(/\s+/g, ' ').trim();
+                  currentInv[matchIdx] = {
+                    ...currentItem,
+                    name: newName,
+                    description: update.description || currentItem.description,
+                    freshness: update.freshness || currentItem.freshness
+                  };
+                }
+              } else {
+                const newQty = currentItem.quantity + delta;
+                if (newQty <= 0) {
+                  currentInv.splice(matchIdx, 1);
+                } else {
+                  currentInv[matchIdx] = {
+                    ...currentItem,
+                    quantity: newQty,
+                    description: update.description || currentItem.description,
+                    freshness: update.freshness || currentItem.freshness,
+                    consumable: update.consumable !== undefined ? update.consumable : currentItem.consumable
+                  };
+                }
+              }
+            } else if (update.quantityDelta > 0) {
+              // Increment existing item quantity
+              currentInv[matchIdx] = {
                 ...currentItem,
-                quantity: newQty,
+                quantity: currentItem.quantity + update.quantityDelta,
                 description: update.description || currentItem.description,
-                freshness: update.freshness || currentItem.freshness,
-                consumable: update.consumable !== undefined ? update.consumable : currentItem.consumable
+                freshness: update.freshness || currentItem.freshness
               };
             }
           } else if (update.quantityDelta > 0) {
