@@ -20,13 +20,9 @@ export interface ValidatedRuleOutcome {
 export class DeterministicRulesEngine {
   
   /**
-   * Evaluates the global game status: 'active' | 'victory' | 'timeout' | 'breakdown'
+   * Evaluates the global game status: 'active' | 'breakdown'
    */
   public static evaluateGameStatus(state: GameState): { status: GameStatus; reason?: string } {
-    const now = Date.now();
-    const elapsedRealMs = now - (state.epochRealTime || now);
-    const elapsedGameHours = elapsedRealMs / (60 * 60 * 1000); // In our real-time scale, 1 real hr = 1 game hr (or scaled)
-
     // 1. Mental or physical breakdown (vital collapse)
     if ((state.vitals.mindset !== undefined && state.vitals.mindset <= 0) || 
         (state.vitals.energy <= 0 && state.vitals.hunger <= 0)) {
@@ -34,21 +30,6 @@ export class DeterministicRulesEngine {
         status: 'breakdown',
         reason: "Épuisement total. Votre équilibre mental et physique a atteint un seuil critique. Vous devez impérativement vous reposer et reprendre des forces."
       };
-    }
-
-    // 2. 36h cycle completion (Only evaluated once, before player continues in open-ended mode)
-    if (!state.hasAcknowledgedEpilogue && elapsedGameHours >= 36) {
-      if (state.vitals.mindset >= 35 && state.vitals.energy >= 15 && state.bank.checking >= 0) {
-        return {
-          status: 'victory',
-          reason: "Cycle initial de 36 heures accompli avec succès ! Vous avez su préserver votre stabilité financière, maintenir votre lucidité et poser les bases de votre vie dans la cité."
-        };
-      } else {
-        return {
-          status: 'timeout',
-          reason: "Le premier cycle de 36 heures est arrivé à son terme. Bien que le rythme fut éprouvant, vous avez franchi ce premier cap d'acclimatation."
-        };
-      }
     }
 
     return { status: 'active' };

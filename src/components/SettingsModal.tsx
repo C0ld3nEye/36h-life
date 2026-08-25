@@ -3,12 +3,14 @@ import {
   Settings, X, Cloud, CloudOff, RefreshCw, LogIn, LogOut, Download, 
   Upload, Bell, BellRing, BellOff, Volume2, CheckCircle2, AlertCircle, 
   RotateCcw, PowerOff, Sparkles, User, ShieldCheck, FileJson, Heart, 
-  Compass, Eye, Check, AlertTriangle, Moon
+  Compass, Eye, Check, AlertTriangle, Moon, Cpu, Layers, Brain,
+  Zap, HelpCircle
 } from 'lucide-react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { useGameStore } from '../state/useGameState';
 import { auth, loginWithGoogle, logout } from '../firebase';
 import { onSyncStatusChange, triggerCloudSave, SyncStatus } from '../lib/cloudSync';
+import { hybridAIRouter } from '../lib/hybridRouter';
 import { 
   getNotificationPermission, 
   requestNotificationPermission, 
@@ -27,10 +29,12 @@ export function SettingsModal({ isOpen, onClose, onSleep }: SettingsModalProps) 
   const { 
     autopilotMode, 
     setAutopilotMode, 
-    resetGame 
+    resetGame,
+    vitals,
+    episodicMemories
   } = useGameStore();
 
-  const [activeTab, setActiveTab] = useState<'cloud' | 'files' | 'notifs' | 'system'>('cloud');
+  const [activeTab, setActiveTab] = useState<'cloud' | 'ai' | 'files' | 'notifs' | 'system'>('cloud');
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(auth.currentUser);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ state: 'offline' });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -222,6 +226,20 @@ export function SettingsModal({ isOpen, onClose, onSleep }: SettingsModalProps) 
           </button>
 
           <button
+            onClick={() => setActiveTab('ai')}
+            className={cn(
+              "px-3.5 py-2 text-xs font-semibold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
+              activeTab === 'ai'
+                ? "bg-slate-900 text-indigo-400 border-t border-x border-white/10"
+                : "text-slate-400 hover:text-slate-200"
+            )}
+          >
+            <Brain className="w-3.5 h-3.5" />
+            <span>Architecture IA V2</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+          </button>
+
+          <button
             onClick={() => setActiveTab('files')}
             className={cn(
               "px-3.5 py-2 text-xs font-semibold rounded-t-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
@@ -361,6 +379,90 @@ export function SettingsModal({ isOpen, onClose, onSleep }: SettingsModalProps) 
                     <span>Se connecter avec Google (Activer le Cloud Multi-Appareils)</span>
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: MOTEUR NARRATIF IA (GEMINI CLOUD) */}
+          {activeTab === 'ai' && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-1 flex items-center gap-1.5">
+                  <Brain className="w-4 h-4" />
+                  <span>Moteur Narratif IA (Google Gemini)</span>
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Toutes les narrations, interactions et conséquences de vos actions sont générées en temps réel par les modèles Google Gemini via le serveur de l'application.
+                </p>
+              </div>
+
+              {/* État du moteur Gemini */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-sky-400" />
+                    <span>Statut du Moteur IA</span>
+                  </h4>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Opérationnel (Cloud API)
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900/90 border border-white/5 space-y-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-slate-950/60 border border-white/5">
+                      <span className="block text-slate-400 font-medium mb-0.5">Architecture :</span>
+                      <span className="font-semibold text-slate-200">Génération Serveur Express Sécurisée</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-950/60 border border-white/5">
+                      <span className="block text-slate-400 font-medium mb-0.5">Dernière Latence :</span>
+                      <span className="font-semibold text-emerald-400 font-mono">
+                        {hybridAIRouter.getLastLatency() ? `${hybridAIRouter.getLastLatency()} ms` : 'En attente d\'action'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modules Cognitifs & Mémoire Sémantique */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-white/10 space-y-2.5">
+                <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-indigo-400" />
+                  <span>Modules Cognitifs & Continuité Narrative</span>
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-900/90 border border-white/5 space-y-1">
+                    <div className="flex items-center justify-between text-slate-300 font-semibold text-[11px]">
+                      <span>Mémoire Épisodique (RAG) :</span>
+                      <span className="text-sky-400">Active</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      {episodicMemories?.length || 0} souvenir(s) clés conservés pour contextualiser les décisions de l'IA.
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-900/90 border border-white/5 space-y-1">
+                    <div className="flex items-center justify-between text-slate-300 font-semibold text-[11px]">
+                      <span>Perception du Mindset :</span>
+                      <span className={vitals.mindset < 25 ? "text-rose-400" : vitals.mindset > 75 ? "text-emerald-400" : "text-sky-400"}>
+                        {vitals.mindset < 25 ? "Altérée / Distorsions" : vitals.mindset > 75 ? "Hyper-lucide" : "Stable & Réaliste"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Influence subtilement le ton et la subjectivité des descriptions reçues.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Note informative sur les navigateurs web mobiles */}
+              <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-white/10 flex items-start gap-2.5 text-[11px] text-slate-400">
+                <HelpCircle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong className="text-slate-300">Note de fonctionnement :</strong> Sur le Web mobile (Chrome Android), l'accès direct aux puces IA matérielles n'est pas autorisé aux pages web par Google. L'application utilise donc directement l'API Cloud de Gemini pour garantir la plus haute qualité de rédaction et une réactivité optimale.
+                </div>
               </div>
             </div>
           )}

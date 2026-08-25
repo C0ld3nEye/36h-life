@@ -940,8 +940,9 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
       inventory: Array.isArray(savedState.inventory) ? savedState.inventory : (state.inventory || INITIAL_STATE.inventory),
       narrativeHistory: sanitizeNarrativeHistory(rawNarrative),
       choices: sanitizeChoices(savedState.choices || state.choices || []),
-      gameStatus: savedState.gameStatus || 'active',
-      epilogueSummary: savedState.epilogueSummary,
+      gameStatus: (savedState.gameStatus === 'timeout' || savedState.gameStatus === 'victory') ? 'active' : (savedState.gameStatus || 'active'),
+      hasAcknowledgedEpilogue: true,
+      epilogueSummary: (savedState.gameStatus === 'timeout' || savedState.gameStatus === 'victory') ? undefined : savedState.epilogueSummary,
       vitals: {
         ...INITIAL_STATE.vitals,
         ...(savedState.vitals || {}),

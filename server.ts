@@ -1229,6 +1229,30 @@ TU DOIS OBLIGATOIREMENT :
 `;
     }
 
+    const currentMindset = state.vitals.mindset ?? 50;
+    let mindsetStyleGuide = "";
+    if (currentMindset <= 25) {
+      mindsetStyleGuide = `
+🚨 ALTÉRATION CRITIQUE DU MINDSET (${currentMindset}/100 - VULNÉRABILITÉ / PARANOÏA / DISTORSIONS SENSORIELLES) :
+- Le niveau de santé mentale du joueur est critique (< 25).
+- Altère dynamiquement le style narratif : intègre des impressions de regard pesant des passants, des acouphènes ou bruits urbains déformés, des reflets flous dans les vitrines, des doutes lancinants et une sensation d'oppression.
+- Les choix proposés ('choices') doivent refléter cette tension intérieure (réactions défensives, repli, méfiance ou décisions précipitées).`;
+    } else if (currentMindset <= 45) {
+      mindsetStyleGuide = `
+⚡ ALTÉRATION MODÉRÉE DU MINDSET (${currentMindset}/100 - FATIGUE NERVEUSE & VIGILANCE CRISPÉE) :
+- Le joueur ressent du doute et une fatigue nerveuse.
+- La narration doit retranscrire une ambiance légèrement terne ou pesante, avec une sensibilité accrue aux bruits et aux imprévus.`;
+    } else if (currentMindset >= 80) {
+      mindsetStyleGuide = `
+✨ ÉLÉVATION DU MINDSET (${currentMindset}/100 - HYPER-LUCIDITÉ & INSPIRATION EMPATHIQUE) :
+- Le joueur est dans un état d'esprit optimal et serein (> 80).
+- La narration met en valeur la vivacité des détails du quartier, la fluidité des opportunités et des dialogues bienveillants et constructifs.`;
+    } else {
+      mindsetStyleGuide = `
+⚖️ ÉTAT DU MINDSET (${currentMindset}/100 - LUCIDITÉ STABLE) :
+- Perception sobre, nette et équilibrée du monde et des interactions.`;
+    }
+
     const activePlotThreadsList = (state.activePlotHooks && state.activePlotHooks.length > 0)
       ? state.activePlotHooks.map(h => `• ${h}`).join('\n')
       : "• Intégration et découverte du quartier Saint-Michel\n• Projets professionnels et autonomie financière\n• Relations de voisinage et mystères locaux";
@@ -1237,6 +1261,7 @@ TU DOIS OBLIGATOIREMENT :
 You are the master narrator and game director for an immersive life simulation RPG set on an Earth-like planet with a 36-hour day and slightly advanced tech.
 The player interacts through free-form text actions or suggested choices.
 ${agendaPriorityInstruction}
+${mindsetStyleGuide}
 
 🌍 DATE, HEURE EXACTE & CYCLE ATMOSPHÉRIQUE ACTUEL (JOURNÉE DE 36 HEURES SUR CETTE PLANÈTE) :
 - Date calendaire précise : ${gameTimeInfo.fullDateStr} (Jour ${gameTimeInfo.dayNumber}) à ${gameTimeInfo.timeStr}
@@ -1313,7 +1338,10 @@ ${taskContext}
 - HISTORIQUE NARRATIF COMPLET (ACTIONS & RÉPONSES PRÉCÉDENTES) :
 ${recentHistory}
 
-The player attempts to do: "${action}"
+🎯 ACTION ACTUELLE STRICTE DU JOUEUR : "${action}"
+🛑 RÈGLE D'OR DE TRAITEMENT DE L'ACTION DU JOUEUR :
+- Décris EXCLUSIVEMENT et directement les conséquences de l'action actuelle : "${action}".
+- INTERDICTION FORMELLE de répéter, continuer ou confondre avec les actions antérieures de l'historique narratif (si l'historique parlait d'une gorgée d'eau ou d'un appel précédent, et que le joueur demande maintenant de manger ou d'aller dehors, décris IMMÉDIATEMENT le fait de manger ou d'aller dehors sans halluciner l'ancienne action !).
 
 CRITICAL NARRATIVE & SYSTEM RULES:
 1. DANGEROUS ACTIONS: If the action is extremely dangerous, illegal, or fatal, and 'force' is false (current force: ${force}), set 'isDangerous': true and write a clear 'dangerWarning'. Do not provide narrative or impacts.

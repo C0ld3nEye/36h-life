@@ -5,6 +5,7 @@ import {
   TaskProgressRequest, TaskProgressResponse, 
   GameState 
 } from '../types';
+import { hybridAIRouter, HybridActionResponse } from './hybridRouter';
 
 // ==========================================
 // STRICT ZOD SCHEMAS FOR LLM JSON VALIDATION
@@ -254,30 +255,18 @@ export const TaskProgressResponseSchema = z.object({
   taskTimeAdjustmentMinutes: z.number().optional()
 }).passthrough();
 
-function sanitizeStatePayload(state: GameState): Partial<GameState> {
-  if (!state) return {};
+function sanitizeStatePayload(state: GameState): GameState {
+  if (!state) return state;
   return {
-    epochRealTime: state.epochRealTime,
-    vitals: state.vitals,
-    skills: state.skills,
-    bank: state.bank,
-    currentTask: state.currentTask,
-    autopilotMode: state.autopilotMode,
-    activePlotHooks: state.activePlotHooks,
+    ...state,
     narrativeHistory: (state.narrativeHistory || []).slice(-30),
-    episodicMemories: state.episodicMemories || [],
     characters: state.characters ? Object.fromEntries(
       Object.entries(state.characters).map(([k, c]) => [k, { ...c, imageUrl: undefined }])
     ) : {},
     locations: state.locations ? Object.fromEntries(
       Object.entries(state.locations).map(([k, l]) => [k, { ...l, imageUrl: undefined }])
     ) : {},
-    agenda: state.agenda || [],
     diary: (state.diary || []).slice(-15),
-    inventory: Array.isArray(state.inventory) ? state.inventory : [],
-    plotLeads: Array.isArray(state.plotLeads) ? state.plotLeads : [],
-    rumors: Array.isArray(state.rumors) ? state.rumors : [],
-    messages: Array.isArray(state.messages) ? state.messages : []
   };
 }
 
@@ -315,17 +304,17 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 1, ti
 
 export const api = {
   async performAction(req: ActionRequest): Promise<ActionResponse> {
-    const sanitizedReq = {
+    const sanitizedReq: ActionRequest = {
       action: req.action,
       force: req.force,
       state: sanitizeStatePayload(req.state)
     };
 
-    try {
+    return hybridAIRouter.routeAction(sanitizedReq, async (sanitized) => {
       const res = await fetchWithRetry('/api/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sanitizedReq)
+        body: JSON.stringify(sanitized)
       }, 1, 45000);
 
       const rawJson = await res.json();
@@ -349,18 +338,7 @@ export const api = {
               ]
         };
       }
-    } catch (err) {
-      console.warn("Network or processing error during performAction, using graceful narrative fallback:", err);
-      return {
-        isDangerous: false,
-        narrative: `Vous poursuivez calmement votre démarche ("${req.action}"). L'environnement autour de vous réagit paisiblement.`,
-        choices: [
-          "Faire le point sur vos priorités actuelles",
-          "Consulter votre dossier personnel et vos finances",
-          "Continuer d'explorer les opportunités"
-        ]
-      };
-    }
+    });
   },
 
   async getOfflineRecap(req: OfflineRecapRequest): Promise<OfflineRecapResponse> {
