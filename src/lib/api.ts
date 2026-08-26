@@ -37,10 +37,29 @@ const InventoryUpdateSchema = z.object({
   consumable: z.boolean().optional()
 });
 
+const SocialTieSchema = z.object({
+  targetCharacterId: z.string(),
+  targetCharacterName: z.string(),
+  relationshipType: z.enum(['ami', 'associe', 'rival', 'famille', 'creancier', 'amoureux']),
+  dynamicSummary: z.string()
+});
+
+const MarketTrendSchema = z.object({
+  id: z.string().optional(),
+  category: z.enum(['nourriture', 'technologie', 'transport', 'energie', 'loyer', 'divers']).default('divers'),
+  label: z.string(),
+  priceMultiplier: z.number().default(1.0),
+  reason: z.string(),
+  district: z.string().optional(),
+  expiresAtGameDate: z.number()
+});
+
 const CharacterProfileSchema = z.object({
   id: z.string(),
   name: z.string(),
   locationEncountered: z.string().default('Ville'),
+  currentLocationId: z.string().optional(),
+  schedule: z.any().optional(),
   relationshipStatus: z.enum(['amical', 'amoureux', 'professionnel', 'conflictuel', 'neutre', 'inconnu']).default('neutre'),
   age: z.string().optional(),
   appearance: z.string().optional(),
@@ -49,6 +68,8 @@ const CharacterProfileSchema = z.object({
   financialRelation: z.string().optional(),
   pendingItems: z.array(z.string()).optional(),
   upcomingEvents: z.array(z.string()).optional(),
+  socialTies: z.array(SocialTieSchema).optional(),
+  favorBalance: z.number().optional(),
   notes: z.string().default(''),
   imageUrl: z.string().optional()
 });
@@ -67,11 +88,21 @@ const LocationProfileSchema = z.object({
   discoveredGameDate: z.number().default(() => Date.now()),
   imageUrl: z.string().optional(),
   isCurrentLocation: z.boolean().optional(),
-  accessLevel: z.enum(['libre', 'ticket_requis', 'pass_securite', 'ferme_nuit', 'inconnu']).optional()
+  accessLevel: z.enum(['libre', 'ticket_requis', 'pass_securite', 'ferme_nuit', 'inconnu']).optional(),
+  openingHours: z.object({
+    openHour: z.number(),
+    closeHour: z.number()
+  }).optional(),
+  temporaryStatus: z.object({
+    isClosed: z.boolean(),
+    reason: z.string().optional()
+  }).optional()
 });
 
 const CharacterUpdateSchema = z.object({
   id: z.string(),
+  currentLocationId: z.string().optional(),
+  schedule: z.any().optional(),
   relationshipStatus: z.enum(['amical', 'amoureux', 'professionnel', 'conflictuel', 'neutre', 'inconnu']).optional(),
   age: z.string().optional(),
   appearance: z.string().optional(),
@@ -80,6 +111,8 @@ const CharacterUpdateSchema = z.object({
   financialRelation: z.string().optional(),
   pendingItems: z.array(z.string()).optional(),
   upcomingEvents: z.array(z.string()).optional(),
+  socialTies: z.array(SocialTieSchema).optional(),
+  favorDelta: z.number().optional(),
   notesAppend: z.string().optional(),
   notesReplace: z.string().optional()
 });
@@ -95,6 +128,14 @@ const LocationUpdateSchema = z.object({
   associatedCharacters: z.array(z.string()).optional(),
   isCurrentLocation: z.boolean().optional(),
   accessLevel: z.enum(['libre', 'ticket_requis', 'pass_securite', 'ferme_nuit', 'inconnu']).optional(),
+  openingHours: z.object({
+    openHour: z.number(),
+    closeHour: z.number()
+  }).optional(),
+  temporaryStatus: z.object({
+    isClosed: z.boolean(),
+    reason: z.string().optional()
+  }).optional(),
   notesAppend: z.string().optional(),
   notesReplace: z.string().optional()
 });
@@ -121,14 +162,18 @@ const AgendaEventUpdateSchema = z.object({
 });
 
 const PlotLeadSchema = z.object({
+  id: z.string().optional(),
   title: z.string(),
   category: z.enum(['emploi', 'mystere', 'quartier', 'personnel', 'finance']).default('personnel'),
-  status: z.enum(['actif', 'en_pause', 'resolu', 'abandonne']).default('actif'),
+  status: z.enum(['actif', 'en_pause', 'resolu', 'abandonne', 'expire']).default('actif'),
   qualitativeStage: z.string().default('Découverte'),
   clues: z.array(z.string()).default([]),
   relatedCharacterIds: z.array(z.string()).optional(),
   relatedLocationIds: z.array(z.string()).optional(),
   discoveredGameDateStr: z.string().optional(),
+  expiryWarningText: z.string().optional(),
+  expiredReason: z.string().optional(),
+  expiresAtGameDate: z.number().optional(),
   notes: z.string().optional()
 });
 
@@ -141,14 +186,19 @@ const RumorEntrySchema = z.object({
 });
 
 const ContactMessageSchema = z.object({
+  id: z.string().optional(),
   senderId: z.string().default('inconnu'),
   senderName: z.string().default('Contact'),
   senderAvatar: z.string().optional(),
   preview: z.string().default('Nouveau message'),
-  content: z.string(),
+  fullContent: z.string().optional(),
+  content: z.string().optional(),
+  possibleReplies: z.array(z.string()).optional(),
+  replyOptions: z.array(z.string()).optional(),
   timestampGameDateStr: z.string().optional(),
   attachedAgendaEventId: z.string().optional(),
-  replyOptions: z.array(z.string()).optional()
+  read: z.boolean().optional(),
+  replied: z.boolean().optional()
 });
 
 export const ActionResponseSchema = z.object({
@@ -178,10 +228,15 @@ export const ActionResponseSchema = z.object({
     id: z.string(),
     qualitativeStage: z.string().optional(),
     newClues: z.array(z.string()).optional(),
-    status: z.enum(['actif', 'en_pause', 'resolu', 'abandonne']).optional()
+    status: z.enum(['actif', 'en_pause', 'resolu', 'abandonne', 'expire']).optional(),
+    expiryWarningText: z.string().optional(),
+    expiredReason: z.string().optional(),
+    expiresAtGameDate: z.number().optional()
   })).optional(),
   newRumors: z.array(RumorEntrySchema).optional(),
   newMessages: z.array(ContactMessageSchema).optional(),
+  newMarketTrends: z.array(MarketTrendSchema).optional(),
+  updatedMarketTrends: z.array(MarketTrendSchema.partial()).optional(),
   activePlotHooks: z.array(z.string()).optional(),
   episodicMemory: z.object({
     id: z.string().optional(),
@@ -195,7 +250,7 @@ export const ActionResponseSchema = z.object({
   diaryEntry: z.object({
     title: z.string(),
     content: z.string(),
-    category: z.enum(['souvenir', 'reflexion', 'secret', 'objectif']).optional(),
+    category: z.enum(['souvenir', 'reflexion', 'secret', 'objectif', 'absence']).optional(),
     mood: z.string().optional(),
     milestone: z.boolean().optional()
   }).optional()
@@ -208,6 +263,7 @@ export const OfflineRecapResponseSchema = z.object({
   inventoryUpdates: z.array(InventoryUpdateSchema).optional(),
   skillsImpact: z.array(z.object({ name: z.string(), practicePointsDelta: z.number() })).optional(),
   events: z.array(z.string()).default([]),
+  socialEvents: z.array(z.string()).optional(),
   timeline: z.array(z.object({ timeRange: z.string(), summary: z.string() })).optional(),
   choices: z.array(z.string()).default([
     "Faire le point sur vos activités",
@@ -225,10 +281,14 @@ export const OfflineRecapResponseSchema = z.object({
     id: z.string(),
     qualitativeStage: z.string().optional(),
     newClues: z.array(z.string()).optional(),
-    status: z.enum(['actif', 'en_pause', 'resolu', 'abandonne']).optional()
+    status: z.enum(['actif', 'en_pause', 'resolu', 'abandonne', 'expire']).optional(),
+    expiryWarningText: z.string().optional(),
+    expiredReason: z.string().optional(),
+    expiresAtGameDate: z.number().optional()
   })).optional(),
   newRumors: z.array(RumorEntrySchema).optional(),
   newMessages: z.array(ContactMessageSchema).optional(),
+  newMarketTrends: z.array(MarketTrendSchema).optional(),
   activePlotHooks: z.array(z.string()).optional(),
   episodicMemory: z.object({
     id: z.string().optional(),

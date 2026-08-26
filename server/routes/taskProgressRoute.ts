@@ -15,15 +15,15 @@ export async function handleTaskProgressRoute(req: Request, res: Response): Prom
     const gameTimeInfo = getGameDateInfoServer(state?.epochRealTime);
 
     // Construire le contexte du lieu actuel et des PNJ présents
-    const locations = state?.locations ? Object.values(state.locations) : [];
-    const currentLocation = locations.find((l: any) => l.isCurrentLocation);
+    const locations: any[] = state?.locations ? Object.values(state.locations) : [];
+    const currentLocation: any = locations.find((l: any) => l.isCurrentLocation);
     const locationContext = currentLocation
       ? `Lieu actuel : "${currentLocation.name}" (${currentLocation.district || 'Saint-Michel'}) — ${currentLocation.description || ''}`
       : 'Lieu : Quartier Saint-Michel';
 
-    const characters = state?.characters ? Object.values(state.characters) : [];
+    const characters: any[] = state?.characters ? Object.values(state.characters) : [];
     const nearbyCharacters = characters
-      .filter((c: any) => currentLocation && c.locationEncountered === currentLocation.name)
+      .filter((c: any) => currentLocation && (c.currentLocationId === currentLocation.id || c.locationEncountered === currentLocation.name))
       .slice(0, 3)
       .map((c: any) => `${c.name} (${c.occupation || c.relationshipStatus || 'présent'})`)
       .join(', ');

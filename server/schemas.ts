@@ -62,6 +62,20 @@ export const actionResponseSchema: Schema = {
           financialRelation: { type: Type.STRING, description: "Debts, loans, contractual deals, or financial arrangements." },
           pendingItems: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Tasks, promises or obligations with this character." },
           upcomingEvents: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Scheduled meetings or appointments." },
+          socialTies: {
+            type: Type.ARRAY,
+            description: "Relationships with other characters in the city (allies, rivals, partners, family).",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                targetCharacterId: { type: Type.STRING },
+                targetCharacterName: { type: Type.STRING },
+                relationshipType: { type: Type.STRING, enum: ['ami', 'associe', 'rival', 'famille', 'creancier', 'amoureux'] },
+                dynamicSummary: { type: Type.STRING, description: "Short summary of their dynamic e.g. 'Travaillent ensemble sur les quais'" }
+              }
+            }
+          },
+          favorBalance: { type: Type.INTEGER, description: "> 0 if the NPC owes the player a favor, < 0 if the player is indebted to the NPC" },
           notes: { type: Type.STRING, description: "Synthetic summary of interactions and remarks. NEVER leave empty!" }
         },
         required: ["id", "name"]
@@ -79,6 +93,13 @@ export const actionResponseSchema: Schema = {
           description: { type: Type.STRING, description: "Rich, vivid, sensory description: architecture, lighting under the 36-hour cycle, scents, atmosphere, and vibe. NEVER leave empty!" },
           keyFeatures: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of 3 to 5 key amenities or distinct features (e.g. ['Terrasse ombragée', 'Comptoir en zinc', 'Wifi public']). NEVER leave empty!" },
           associatedCharacters: { type: Type.ARRAY, items: { type: Type.STRING }, description: "IDs or names of characters associated with this location." },
+          openingHours: {
+            type: Type.OBJECT,
+            properties: {
+              openHour: { type: Type.INTEGER, description: "Hour of opening in 36h cycle (e.g. 10)" },
+              closeHour: { type: Type.INTEGER, description: "Hour of closing in 36h cycle (e.g. 28)" }
+            }
+          },
           notes: { type: Type.STRING, description: "Practical utility or personal reflection on the place. NEVER leave empty!" },
           discoveredGameDate: { type: Type.INTEGER }
         },
@@ -109,6 +130,20 @@ export const actionResponseSchema: Schema = {
           financialRelation: { type: Type.STRING },
           pendingItems: { type: Type.ARRAY, items: { type: Type.STRING } },
           upcomingEvents: { type: Type.ARRAY, items: { type: Type.STRING } },
+          currentLocationId: { type: Type.STRING, description: "ID of the location where the NPC currently is (e.g. 'loc-bistro-saint-michel')" },
+          socialTies: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                targetCharacterId: { type: Type.STRING },
+                targetCharacterName: { type: Type.STRING },
+                relationshipType: { type: Type.STRING, enum: ['ami', 'associe', 'rival', 'famille', 'creancier', 'amoureux'] },
+                dynamicSummary: { type: Type.STRING }
+              }
+            }
+          },
+          favorDelta: { type: Type.INTEGER, description: "+1 if the player helped them, -1 if the player asked a favor" },
           notesAppend: { type: Type.STRING },
           notesReplace: { type: Type.STRING }
         },
@@ -126,6 +161,21 @@ export const actionResponseSchema: Schema = {
           description: { type: Type.STRING },
           keyFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
           associatedCharacters: { type: Type.ARRAY, items: { type: Type.STRING } },
+          accessLevel: { type: Type.STRING, enum: ['libre', 'ticket_requis', 'pass_securite', 'ferme_nuit', 'inconnu'] },
+          temporaryStatus: {
+            type: Type.OBJECT,
+            properties: {
+              isClosed: { type: Type.BOOLEAN },
+              reason: { type: Type.STRING, description: "e.g. 'Fermé pour inventaire', 'Travaux de voirie'" }
+            }
+          },
+          openingHours: {
+            type: Type.OBJECT,
+            properties: {
+              openHour: { type: Type.INTEGER },
+              closeHour: { type: Type.INTEGER }
+            }
+          },
           notesAppend: { type: Type.STRING },
           notesReplace: { type: Type.STRING }
         },
@@ -172,11 +222,13 @@ export const actionResponseSchema: Schema = {
       items: { type: Type.OBJECT, properties: {
         title: { type: Type.STRING },
         category: { type: Type.STRING, enum: ["emploi", "mystere", "quartier", "personnel", "finance"] },
-        status: { type: Type.STRING, enum: ["actif", "en_pause", "resolu"] },
+        status: { type: Type.STRING, enum: ["actif", "en_pause", "resolu", "abandonne", "expire"] },
         qualitativeStage: { type: Type.STRING },
         clues: { type: Type.ARRAY, items: { type: Type.STRING } },
         relatedCharacterIds: { type: Type.ARRAY, items: { type: Type.STRING } },
         relatedLocationIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+        expiryWarningText: { type: Type.STRING, description: "Qualitative deadline warning e.g. 'Opportunité valable jusqu'à la fin de la journée'" },
+        expiredReason: { type: Type.STRING, description: "Why the lead expired if applicable" },
         notes: { type: Type.STRING }
       }}
     },
@@ -186,7 +238,9 @@ export const actionResponseSchema: Schema = {
         id: { type: Type.STRING },
         qualitativeStage: { type: Type.STRING },
         newClues: { type: Type.ARRAY, items: { type: Type.STRING } },
-        status: { type: Type.STRING, enum: ["actif", "en_pause", "resolu"] }
+        status: { type: Type.STRING, enum: ["actif", "en_pause", "resolu", "abandonne", "expire"] },
+        expiryWarningText: { type: Type.STRING },
+        expiredReason: { type: Type.STRING }
       }}
     },
     newRumors: {
@@ -207,6 +261,22 @@ export const actionResponseSchema: Schema = {
         content: { type: Type.STRING },
         replyOptions: { type: Type.ARRAY, items: { type: Type.STRING } }
       }}
+    },
+    newMarketTrends: {
+      type: Type.ARRAY,
+      description: "Local economic trends or price shifts (e.g. food scarcity, sales, transit price changes).",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          category: { type: Type.STRING, enum: ['nourriture', 'technologie', 'transport', 'energie', 'loyer', 'divers'] },
+          label: { type: Type.STRING },
+          priceMultiplier: { type: Type.NUMBER, description: "Multiplier e.g. 1.25 for +25%, 0.8 for -20%" },
+          reason: { type: Type.STRING },
+          district: { type: Type.STRING },
+          expiresAtGameDate: { type: Type.INTEGER }
+        },
+        required: ["label", "priceMultiplier", "reason"]
+      }
     },
     episodicMemory: {
       type: Type.OBJECT,
@@ -350,6 +420,7 @@ export const offlineRecapSchema: Schema = {
         properties: {
           id: { type: Type.STRING },
           relationshipStatus: { type: Type.STRING, enum: ['amical', 'amoureux', 'professionnel', 'conflictuel', 'neutre', 'inconnu'] },
+          currentLocationId: { type: Type.STRING },
           notesAppend: { type: Type.STRING }
         },
         required: ["id"]
@@ -361,6 +432,14 @@ export const offlineRecapSchema: Schema = {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
+          accessLevel: { type: Type.STRING, enum: ['libre', 'ticket_requis', 'pass_securite', 'ferme_nuit', 'inconnu'] },
+          temporaryStatus: {
+            type: Type.OBJECT,
+            properties: {
+              isClosed: { type: Type.BOOLEAN },
+              reason: { type: Type.STRING }
+            }
+          },
           notesAppend: { type: Type.STRING }
         },
         required: ["id"]
@@ -418,7 +497,9 @@ export const offlineRecapSchema: Schema = {
           category: { type: Type.STRING, enum: ['emploi', 'mystere', 'quartier', 'personnel', 'finance'] },
           qualitativeStage: { type: Type.STRING },
           clues: { type: Type.ARRAY, items: { type: Type.STRING } },
-          status: { type: Type.STRING, enum: ['actif', 'en_pause', 'resolu', 'abandonne'] }
+          status: { type: Type.STRING, enum: ['actif', 'en_pause', 'resolu', 'abandonne', 'expire'] },
+          expiryWarningText: { type: Type.STRING },
+          expiredReason: { type: Type.STRING }
         },
         required: ["title"]
       }
@@ -432,7 +513,9 @@ export const offlineRecapSchema: Schema = {
           id: { type: Type.STRING },
           qualitativeStage: { type: Type.STRING },
           newClues: { type: Type.ARRAY, items: { type: Type.STRING } },
-          status: { type: Type.STRING, enum: ['actif', 'en_pause', 'resolu', 'abandonne'] }
+          status: { type: Type.STRING, enum: ['actif', 'en_pause', 'resolu', 'abandonne', 'expire'] },
+          expiryWarningText: { type: Type.STRING },
+          expiredReason: { type: Type.STRING }
         },
         required: ["id"]
       }
@@ -450,6 +533,26 @@ export const offlineRecapSchema: Schema = {
         required: ["text"]
       }
     },
+    socialEvents: {
+      type: Type.ARRAY,
+      description: "Autonomous social events between NPCs (alliances, partnerships, arguments, gossip) that unfolded during absence.",
+      items: { type: Type.STRING }
+    },
+    newMarketTrends: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          category: { type: Type.STRING, enum: ['nourriture', 'technologie', 'transport', 'energie', 'loyer', 'divers'] },
+          label: { type: Type.STRING },
+          priceMultiplier: { type: Type.NUMBER },
+          reason: { type: Type.STRING },
+          district: { type: Type.STRING },
+          expiresAtGameDate: { type: Type.INTEGER }
+        },
+        required: ["label", "priceMultiplier", "reason"]
+      }
+    },
     diaryEntry: {
       type: Type.OBJECT,
       description: "An introspective first-person diary entry summarizing the character's personal feelings during absence.",
@@ -461,6 +564,14 @@ export const offlineRecapSchema: Schema = {
         milestone: { type: Type.BOOLEAN }
       },
       required: ["title", "content"]
+    },
+    episodicMemory: {
+      type: Type.OBJECT,
+      properties: {
+        summary: { type: Type.STRING, description: "A concise factual episodic memory summary of the offline period." },
+        importance: { type: Type.STRING, enum: ['haute', 'moyenne', 'critique'] },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }
     }
   },
   required: ["narrativeRecap"]

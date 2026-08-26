@@ -2,7 +2,7 @@ import { StateCreator } from 'zustand';
 import { 
   CharacterProfile, LocationProfile, DiaryEntry, 
   AgendaEvent, PlotLead, RumorEntry, ContactMessage, 
-  EpisodicMemory 
+  EpisodicMemory, FavorRecord, MarketTrend
 } from '../../types';
 import { GameStore } from '../useGameState';
 
@@ -15,6 +15,8 @@ export interface WorldSlice {
   plotLeads: PlotLead[];
   rumors: RumorEntry[];
   messages: ContactMessage[];
+  favorsNetwork?: Record<string, FavorRecord>;
+  marketTrends?: MarketTrend[];
   narrativeHistory: { role: 'user' | 'model'; content: string; timestamp: number }[];
   choices: string[];
   activePlotHooks?: string[];
@@ -55,6 +57,8 @@ export const createWorldSlice: StateCreator<GameStore, [], [], WorldSlice> = (se
   plotLeads: [],
   rumors: [],
   messages: [],
+  favorsNetwork: {},
+  marketTrends: [],
   narrativeHistory: [],
   choices: [],
   activePlotHooks: [],

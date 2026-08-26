@@ -1,6 +1,7 @@
 import { 
   GameState, ActionResponse, InventoryItem, 
-  InventoryUpdate, GameStatus, GameAction 
+  InventoryUpdate, GameStatus, GameAction,
+  PlotLead, LocationProfile, MarketTrend, FavorRecord
 } from '../types';
 import { findMatchingInventoryItemIndex } from '../lib/utils';
 
@@ -160,6 +161,20 @@ export class DeterministicRulesEngine {
       }
 
       validated.inventoryUpdates = sanitizedUpdates;
+    }
+
+    // Item Sale / Pawn Protection: If money was gained through selling an item, ensure a valid item was actually deducted
+    if (raw.moneyImpact && (raw.moneyImpact.checkingDelta || 0) > 0) {
+      const isSale = /(vente|vendu|gage|brocante|c[eé]d[eé]|mont-de-pi[eé]t[eé]|mont de pi[eé]t[eé]|revente|pr[eê]teur|fourgue)/i.test(raw.moneyImpact.reason || '');
+      if (isSale) {
+        const hasDeductedItem = (validated.inventoryUpdates || []).some(u => (u.quantityDelta || 0) < 0);
+        if (!hasDeductedItem) {
+          violations.push("Gain financier issu d'une revente rejeté : aucun objet possédé n'a été déduit de l'inventaire.");
+          validated.moneyImpact = undefined;
+          moneyChangesAllowed = false;
+          autoCorrected = true;
+        }
+      }
     }
 
     // --- 3. VITALS & MINDSET RULE VALIDATION ---
@@ -323,4 +338,139 @@ export class DeterministicRulesEngine {
       }
     };
   }
+
+  /**
+   * Evaluates and updates PlotLeads that have passed their expiration deadline.
+   */
+  public static evaluatePlotLeadExpirations(
+    leads: PlotLead[] = [],
+    currentTime: number
+  ): { hasChanged: boolean; updatedLeads: PlotLead[]; newlyExpiredCount: number } {
+    let hasChanged = false;
+    let newlyExpiredCount = 0;
+
+    const updatedLeads = leads.map(lead => {
+      if (lead.status === 'actif' && lead.expiresAtGameDate && currentTime >= lead.expiresAtGameDate) {
+        hasChanged = true;
+        newlyExpiredCount++;
+        return {
+          ...lead,
+          status: 'expire' as const,
+          expiredReason: lead.expiredReason || "Opportunité manquée : le délai d'action est expiré."
+        };
+      }
+      return lead;
+    });
+
+    return { hasChanged, updatedLeads, newlyExpiredCount };
+  }
+
+  /**
+   * Checks whether a location is currently open based on the 36-hour planetary cycle and temporary events.
+   */
+  public static isLocationOpen(
+    location: LocationProfile,
+    currentHour36: number
+  ): { isOpen: boolean; reason?: string } {
+    if (!location) return { isOpen: true };
+
+    // 1. Check temporary status closures (e.g. police seal, maintenance, power outage)
+    if (location.temporaryStatus?.isClosed) {
+      return {
+        isOpen: false,
+        reason: location.temporaryStatus.reason || "Lieu temporairement inaccessible."
+      };
+    }
+
+    // 2. Category specific defaults
+    if (location.category === 'domicile') {
+      return { isOpen: true };
+    }
+
+    // 3. Custom opening hours
+    if (location.openingHours) {
+      const { openHour, closeHour } = location.openingHours;
+      let isOpen = false;
+      if (openHour <= closeHour) {
+        isOpen = currentHour36 >= openHour && currentHour36 < closeHour;
+      } else {
+        // Night shift spanning cycle boundary
+        isOpen = currentHour36 >= openHour || currentHour36 < closeHour;
+      }
+      return {
+        isOpen,
+        reason: isOpen ? undefined : `Fermé à cette heure (Ouverture : ${openHour}h00 - ${closeHour}h00)`
+      };
+    }
+
+    // 4. Default rules for 36-hour cycle:
+    // Commerces & Bureaux are closed during deep night (32:00 to 04:59)
+    if (location.category === 'commerce' || location.category === 'travail') {
+      const isDeepNight = currentHour36 >= 32 || currentHour36 < 5;
+      if (isDeepNight) {
+        return {
+          isOpen: false,
+          reason: "Fermé pour la nuit (Réouverture dès l'aube naissante à 05h00)"
+        };
+      }
+    }
+
+    return { isOpen: true };
+  }
+
+  /**
+   * Evaluates expired market trends according to the 36-hour game clock.
+   */
+  public static evaluateMarketTrendExpirations(
+    trends: MarketTrend[] = [],
+    currentEpoch: number = Date.now()
+  ): { updatedTrends: MarketTrend[]; hasChanged: boolean } {
+    const validTrends = trends.filter(t => t.expiresAtGameDate > currentEpoch);
+    const hasChanged = validTrends.length !== trends.length;
+    return { updatedTrends: validTrends, hasChanged };
+  }
+
+  /**
+   * Evaluates if a benevolent character can offer solidarity/emergency relief
+   * when the player is in severe distress (famine, exhaustion, breakdown risk, heavy debt).
+   */
+  public static evaluateSocialSolidarity(
+    state: GameState
+  ): { canOfferHelp: boolean; helperName?: string; helpType?: 'food' | 'rest' | 'cash'; message?: string } {
+    const isDistressed = (
+      (state.vitals.hunger !== undefined && state.vitals.hunger < 20) || 
+      (state.vitals.energy !== undefined && state.vitals.energy < 15) || 
+      (state.vitals.mindset !== undefined && state.vitals.mindset < 25) || 
+      (state.bank?.checking !== undefined && state.bank.checking < -80)
+    );
+    if (!isDistressed) return { canOfferHelp: false };
+
+    const characters = Object.values(state.characters || {});
+    const benefactor = characters.find(c => (c.favorBalance || 0) > 0 || (state.favorsNetwork?.[c.id]?.balance || 0) > 0);
+    if (!benefactor) return { canOfferHelp: false };
+
+    if (state.vitals.hunger < 20) {
+      return {
+        canOfferHelp: true,
+        helperName: benefactor.name,
+        helpType: 'food',
+        message: `${benefactor.name} remarque votre état de faiblesse et vous propose de partager un repas chaud sans rien demander en retour.`
+      };
+    }
+    if (state.vitals.energy < 15) {
+      return {
+        canOfferHelp: true,
+        helperName: benefactor.name,
+        helpType: 'rest',
+        message: `${benefactor.name} vous invite à vous reposer quelques instants dans un espace sécurisé.`
+      };
+    }
+    return {
+      canOfferHelp: true,
+      helperName: benefactor.name,
+      helpType: 'cash',
+      message: `${benefactor.name} se souvient de l'aide précieuse que vous lui avez apportée et vous dépanne de quelques crédits.`
+    };
+  }
 }
+

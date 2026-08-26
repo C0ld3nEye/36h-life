@@ -2,6 +2,43 @@ const DB_NAME = 'SimDeVieDB';
 const STORE_NAME = 'gameState';
 const KEY = 'current_state';
 
+/** Version du schéma de sauvegarde. Incrémenter lors d'ajouts de champs obligatoires. */
+const SCHEMA_VERSION = 2;
+
+/**
+ * Migre un état sauvegardé vers la version courante du schéma.
+ * Ajoute les valeurs par défaut des champs manquants sans effacer les données existantes.
+ */
+function migrateState(raw: any): any {
+  if (!raw) return raw;
+
+  const version = raw.__schemaVersion ?? 1;
+
+  // v1 → v2 : ajout des champs plotLeads, rumors, messages, episodicMemories, diary
+  if (version < 2) {
+    if (!Array.isArray(raw.plotLeads)) raw.plotLeads = [];
+    if (!Array.isArray(raw.rumors)) raw.rumors = [];
+    if (!Array.isArray(raw.messages)) raw.messages = [];
+    if (!Array.isArray(raw.episodicMemories)) raw.episodicMemories = [];
+    if (!Array.isArray(raw.diary)) raw.diary = [];
+    if (!Array.isArray(raw.agenda)) raw.agenda = [];
+    if (!Array.isArray(raw.inventory)) raw.inventory = [];
+    if (!raw.bank) raw.bank = { checking: 0, savings: 0, debts: 0, transactions: [] };
+    if (!raw.vitals) raw.vitals = { energy: 70, mood: 60, mindset: 60, hunger: 60, hygiene: 70 };
+    if (!raw.skills) raw.skills = {};
+    if (!raw.characters) raw.characters = {};
+    if (!raw.locations) raw.locations = {};
+    if (!raw.favorsNetwork || typeof raw.favorsNetwork !== 'object') raw.favorsNetwork = {};
+    if (!Array.isArray(raw.marketTrends)) raw.marketTrends = [];
+  }
+
+  if (!raw.favorsNetwork || typeof raw.favorsNetwork !== 'object') raw.favorsNetwork = {};
+  if (!Array.isArray(raw.marketTrends)) raw.marketTrends = [];
+
+  raw.__schemaVersion = SCHEMA_VERSION;
+  return raw;
+}
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -239,9 +276,9 @@ export async function loadGameStateFromIDB(): Promise<any> {
         if (primaryData && backupData) {
           // Merge primary and backup if they have different information, prioritizing the newest
           const resolved = mergeGameStates(primaryData, backupData);
-          resolve(resolved);
+          resolve(migrateState(resolved));
         } else {
-          resolve(primaryData || backupData);
+          resolve(migrateState(primaryData || backupData));
         }
       };
       tx.onerror = () => resolve(null);

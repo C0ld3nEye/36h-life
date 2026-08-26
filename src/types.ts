@@ -38,6 +38,31 @@ export type InventoryUpdate = {
   consumable?: boolean;
 };
 
+export type SocialTie = {
+  targetCharacterId: string;
+  targetCharacterName: string;
+  relationshipType: 'ami' | 'associe' | 'rival' | 'famille' | 'creancier' | 'amoureux';
+  dynamicSummary: string;
+};
+
+export type FavorRecord = {
+  characterId: string;
+  characterName?: string;
+  balance: number; // > 0: le PNJ nous doit une faveur, < 0: on lui doit une faveur
+  lastFavorDescription?: string;
+  lastUpdatedGameDate?: number;
+};
+
+export type MarketTrend = {
+  id: string;
+  category: 'nourriture' | 'technologie' | 'transport' | 'energie' | 'loyer' | 'divers';
+  label: string;
+  priceMultiplier: number; // e.g. 1.25 (+25%), 0.85 (-15%)
+  reason: string;
+  district?: string;
+  expiresAtGameDate: number;
+};
+
 export type CharacterProfile = {
   id: string;
   name: string;
@@ -52,6 +77,10 @@ export type CharacterProfile = {
   upcomingEvents?: string[];
   notes: string;
   imageUrl?: string;
+  currentLocationId?: string;
+  schedule?: { phase: CyclePhaseKey; locationId: string; activityDescription?: string }[];
+  socialTies?: SocialTie[];
+  favorBalance?: number;
 };
 
 export type TransitRoute = {
@@ -78,6 +107,8 @@ export type LocationProfile = {
   isCurrentLocation?: boolean;
   transitRoutes?: TransitRoute[];
   accessLevel?: 'libre' | 'ticket_requis' | 'pass_securite' | 'ferme_nuit' | 'inconnu';
+  openingHours?: { openHour: number; closeHour: number }; // In 36-hour cycle (e.g. 10 to 28)
+  temporaryStatus?: { isClosed: boolean; reason?: string; untilGameDate?: number };
 };
 
 export type CharacterUpdate = {
@@ -92,6 +123,9 @@ export type CharacterUpdate = {
   upcomingEvents?: string[];
   notesAppend?: string;
   notesReplace?: string;
+  currentLocationId?: string;
+  socialTies?: SocialTie[];
+  favorDelta?: number;
 };
 
 export type LocationUpdate = {
@@ -106,6 +140,8 @@ export type LocationUpdate = {
   isCurrentLocation?: boolean;
   transitRoutes?: TransitRoute[];
   accessLevel?: LocationProfile['accessLevel'];
+  openingHours?: { openHour: number; closeHour: number };
+  temporaryStatus?: { isClosed: boolean; reason?: string; untilGameDate?: number };
   notesAppend?: string;
   notesReplace?: string;
 };
@@ -211,7 +247,7 @@ export type CycleAtmosphereTheme = {
 };
 
 // Architecture preparation for Future Addition 3: Journal des Intrigues & Rumeurs
-export type PlotLeadStatus = 'actif' | 'en_pause' | 'resolu' | 'abandonne';
+export type PlotLeadStatus = 'actif' | 'en_pause' | 'resolu' | 'abandonne' | 'expire';
 
 export type PlotLead = {
   id: string;
@@ -224,6 +260,9 @@ export type PlotLead = {
   relatedLocationIds?: string[];
   discoveredGameDateStr?: string;
   notes?: string;
+  expiresAtGameDate?: number; // Game timestamp when this lead expires if not investigated
+  expiryWarningText?: string; // Qualitative warning e.g. "L'offre d'emploi expire ce soir"
+  expiredReason?: string; // Explanation if the lead expired/missed e.g. "Le poste a été pourvu par un autre candidat"
 };
 
 export type RumorEntry = {
@@ -291,6 +330,16 @@ export type GameAction =
   | { type: 'CANCEL_TASK'; payload?: { reason?: string } }
   | { type: 'ADD_NARRATIVE'; payload: { role: 'user' | 'model'; content: string } };
 
+export type PlotLeadUpdate = {
+  id: string;
+  qualitativeStage?: string;
+  newClues?: string[];
+  status?: PlotLeadStatus;
+  expiredReason?: string;
+  expiresAtGameDate?: number;
+  expiryWarningText?: string;
+};
+
 export type GameState = {
   epochRealTime: number; // When the game started in real world time
   vitals: Vitals;
@@ -312,10 +361,12 @@ export type GameState = {
   hasAcknowledgedEpilogue?: boolean;
   narrativeArcs?: string[];
   newPlotLeads?: Omit<PlotLead, 'id'>[];
-  updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];
+  updatedPlotLeads?: PlotLeadUpdate[];
   newRumors?: Omit<RumorEntry, 'id'>[];
   newMessages?: Omit<ContactMessage, 'id' | 'timestampReal' | 'read' | 'replied'>[];
   activePlotHooks?: string[];
+  favorsNetwork?: Record<string, FavorRecord>;
+  marketTrends?: MarketTrend[];
   // Prepared future fields (backward-compatible)
   plotLeads?: PlotLead[];
   rumors?: RumorEntry[];
@@ -347,9 +398,11 @@ export type ActionResponse = {
   newAgendaEvents?: AgendaEvent[];
   updatedAgendaEvents?: AgendaEventUpdate[];
   newPlotLeads?: Omit<PlotLead, 'id'>[];
-  updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];
+  updatedPlotLeads?: PlotLeadUpdate[];
   newRumors?: Omit<RumorEntry, 'id'>[];
   newMessages?: Omit<ContactMessage, 'id' | 'timestampReal' | 'read' | 'replied'>[];
+  newMarketTrends?: Omit<MarketTrend, 'id'>[];
+  updatedMarketTrends?: Partial<MarketTrend>[];
   activePlotHooks?: string[];
   episodicMemory?: {
     id?: string;
@@ -363,7 +416,7 @@ export type ActionResponse = {
   diaryEntry?: {
     title: string;
     content: string;
-    category?: 'souvenir' | 'reflexion' | 'secret' | 'objectif';
+    category?: 'souvenir' | 'reflexion' | 'secret' | 'objectif' | 'absence';
     mood?: string;
     milestone?: boolean;
   };
@@ -382,6 +435,7 @@ export type OfflineRecapResponse = {
   inventoryUpdates?: InventoryUpdate[];
   skillsImpact?: { name: string; practicePointsDelta: number }[];
   events?: string[];
+  socialEvents?: string[]; // Autonomous PNJ-to-PNJ gossip, alliances or drama
   timeline?: { timeRange: string; summary: string }[];
   choices?: string[];
   newCharacters?: CharacterProfile[];
@@ -391,9 +445,10 @@ export type OfflineRecapResponse = {
   newAgendaEvents?: AgendaEvent[];
   updatedAgendaEvents?: AgendaEventUpdate[];
   newPlotLeads?: Omit<PlotLead, 'id'>[];
-  updatedPlotLeads?: { id: string; qualitativeStage?: string; newClues?: string[]; status?: PlotLeadStatus }[];
+  updatedPlotLeads?: PlotLeadUpdate[];
   newRumors?: Omit<RumorEntry, 'id'>[];
   newMessages?: Omit<ContactMessage, 'id' | 'timestampReal' | 'read' | 'replied'>[];
+  newMarketTrends?: Omit<MarketTrend, 'id'>[];
   activePlotHooks?: string[];
   episodicMemory?: {
     id?: string;

@@ -166,14 +166,99 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     } catch (e) {}
   }
 
-  const durationMatch = clean.match(/"?durationMinutes"?\s*:\s*(\d+)/i);
+  const plotLeadMatch = clean.match(/"?newPlotLeads"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (plotLeadMatch) {
+    try {
+      const parsedLeads = JSON.parse(plotLeadMatch[1]);
+      if (Array.isArray(parsedLeads) && parsedLeads.length > 0) result.newPlotLeads = parsedLeads;
+    } catch (e) {}
+  }
+
+  const updatePlotMatch = clean.match(/"?updatedPlotLeads"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (updatePlotMatch) {
+    try {
+      const parsedUp = JSON.parse(updatePlotMatch[1]);
+      if (Array.isArray(parsedUp) && parsedUp.length > 0) result.updatedPlotLeads = parsedUp;
+    } catch (e) {}
+  }
+
+  const msgMatch = clean.match(/"?newMessages"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (msgMatch) {
+    try {
+      const parsedMsg = JSON.parse(msgMatch[1]);
+      if (Array.isArray(parsedMsg) && parsedMsg.length > 0) result.newMessages = parsedMsg;
+    } catch (e) {}
+  }
+
+  const rumorMatch = clean.match(/"?newRumors"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (rumorMatch) {
+    try {
+      const parsedRumors = JSON.parse(rumorMatch[1]);
+      if (Array.isArray(parsedRumors) && parsedRumors.length > 0) result.newRumors = parsedRumors;
+    } catch (e) {}
+  }
+
+  const invMatch = clean.match(/"?inventoryUpdates"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (invMatch) {
+    try {
+      const parsedInv = JSON.parse(invMatch[1]);
+      if (Array.isArray(parsedInv) && parsedInv.length > 0) result.inventoryUpdates = parsedInv;
+    } catch (e) {}
+  }
+
+  const skillsMatch = clean.match(/"?skillsImpact"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (skillsMatch) {
+    try {
+      const parsedSkills = JSON.parse(skillsMatch[1]);
+      if (Array.isArray(parsedSkills) && parsedSkills.length > 0) result.skillsImpact = parsedSkills;
+    } catch (e) {}
+  }
+
+  const diaryMatch = clean.match(/"?diaryEntry"?\s*:\s*(\{.*?\})(?:,\s*"?\w+"?\s*:|$)/s);
+  if (diaryMatch) {
+    try {
+      const parsedDiary = JSON.parse(diaryMatch[1]);
+      if (parsedDiary && typeof parsedDiary === 'object') result.diaryEntry = parsedDiary;
+    } catch (e) {}
+  }
+
+  const memoryMatch = clean.match(/"?episodicMemory"?\s*:\s*(\{.*?\})(?:,\s*"?\w+"?\s*:|$)/s);
+  if (memoryMatch) {
+    try {
+      const parsedMemory = JSON.parse(memoryMatch[1]);
+      if (parsedMemory && typeof parsedMemory === 'object') result.episodicMemory = parsedMemory;
+    } catch (e) {}
+  }
+
+  const taskSummaryMatch = clean.match(/"?taskSummary"?\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (taskSummaryMatch) {
+    result.taskSummary = taskSummaryMatch[1].trim();
+  }
+
+  const hooksMatch = clean.match(/"?activePlotHooks"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (hooksMatch) {
+    try {
+      const parsedHooks = JSON.parse(hooksMatch[1]);
+      if (Array.isArray(parsedHooks) && parsedHooks.length > 0) result.activePlotHooks = parsedHooks;
+    } catch (e) {}
+  }
+
+  const trendsMatch = clean.match(/"?newMarketTrends"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
+  if (trendsMatch) {
+    try {
+      const parsedTrends = JSON.parse(trendsMatch[1]);
+      if (Array.isArray(parsedTrends) && parsedTrends.length > 0) result.newMarketTrends = parsedTrends;
+    } catch (e) {}
+  }
+
+  const durationMatch = clean.match(/"?durationMinutes"?\s*:\s*(\d+)/);
   if (durationMatch) {
     result.durationMinutes = parseInt(durationMatch[1], 10);
   }
 
-  const taskSummaryMatch = clean.match(/"?taskSummary"?\s*:\s*"([^"]+)"/i);
-  if (taskSummaryMatch) {
-    result.taskSummary = taskSummaryMatch[1];
+  const adjustMatch = clean.match(/"?taskTimeAdjustmentMinutes"?\s*:\s*(-?\d+)/);
+  if (adjustMatch) {
+    result.taskTimeAdjustmentMinutes = parseInt(adjustMatch[1], 10);
   }
 
   return result;

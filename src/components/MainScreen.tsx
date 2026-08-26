@@ -76,6 +76,7 @@ export function MainScreen() {
   const [loading, setLoading] = useState(false);
   const [dangerWarning, setDangerWarning] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -90,6 +91,7 @@ export function MainScreen() {
     if (!loading) return;
     const timer = setTimeout(() => {
       setLoading(false);
+      setNetworkError(true);
     }, 48000);
     return () => clearTimeout(timer);
   }, [loading]);
@@ -100,6 +102,7 @@ export function MainScreen() {
     
     setLoading(true);
     setDangerWarning(null);
+    setNetworkError(false);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = '40px';
@@ -122,6 +125,7 @@ export function MainScreen() {
       }
     } catch (err) {
       console.error("Action error:", err);
+      setNetworkError(true);
       useGameStore.getState().processActionResponse({
         isDangerous: false,
         narrative: `Vous poursuivez votre action ("${trimmed}"). Malgré un bref instant d'hésitation, les choses suivent leur cours normalement.`,
@@ -152,6 +156,19 @@ export function MainScreen() {
               <div className="w-2 h-2 bg-sky-400 rounded-full animate-bounce" />
               <div className="w-2 h-2 bg-sky-400 rounded-full animate-bounce [animation-delay:-.15s]" />
               <div className="w-2 h-2 bg-sky-400 rounded-full animate-bounce [animation-delay:-.3s]" />
+            </div>
+          </div>
+        )}
+        {networkError && !loading && (
+          <div className="flex justify-center w-full">
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300/80 text-[11px] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+              <span>Connexion instable — la narration a continué en mode local.</span>
+              <button
+                onClick={() => setNetworkError(false)}
+                className="ml-1 text-amber-400/60 hover:text-amber-300 transition-colors text-xs"
+                aria-label="Fermer"
+              >✕</button>
             </div>
           </div>
         )}

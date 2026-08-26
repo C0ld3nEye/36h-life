@@ -71,7 +71,7 @@ function CustomAccountSelector({
 }
 
 export function BankScreen() {
-  const { bank, epochRealTime, transferMoney, takeLoan } = useGameStore();
+  const { bank, epochRealTime, transferMoney, takeLoan, marketTrends } = useGameStore();
   const dateInfo = getGameDateInfo(epochRealTime);
   const currentDay = dateInfo.dayNumber;
   const nextDueDay = Math.floor((currentDay - 1) / 30) * 30 + 31;
@@ -561,6 +561,52 @@ export function BankScreen() {
                     isPositive ? "text-emerald-400" : "text-slate-300"
                   )}>
                     {isPositive ? `+${tx.amount.toLocaleString('fr-FR')} €` : `${tx.amount.toLocaleString('fr-FR')} €`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Climat Économique & Marché Local */}
+      <div className="glass-panel bg-slate-900/50 rounded-3xl p-4 sm:p-5 border border-white/10 shrink-0">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0" />
+          <h3 className="font-bold text-slate-200 text-sm sm:text-base">Climat Économique & Marché Local</h3>
+        </div>
+        
+        {(!marketTrends || marketTrends.length === 0) ? (
+          <p className="text-slate-400 text-xs sm:text-sm italic text-center py-3">Marché stable à Saint-Michel, prix et approvisionnements réguliers.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {marketTrends.map(trend => {
+              const isInflation = (trend.priceMultiplier || 1.0) > 1.05;
+              const isDiscount = (trend.priceMultiplier || 1.0) < 0.95;
+
+              return (
+                <div key={trend.id} className="flex items-start justify-between p-2.5 sm:p-3 bg-slate-950/50 border border-white/5 rounded-xl gap-2">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-200 text-xs sm:text-sm">{trend.label}</span>
+                      <span className={cn(
+                        "text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border font-mono shrink-0",
+                        isInflation && "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                        isDiscount && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                        !isInflation && !isDiscount && "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                      )}>
+                        {trend.category}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{trend.reason}</p>
+                  </div>
+                  <div className={cn(
+                    "text-xs sm:text-sm font-bold font-mono shrink-0 pt-0.5",
+                    isInflation && "text-amber-400",
+                    isDiscount && "text-emerald-400",
+                    !isInflation && !isDiscount && "text-slate-300"
+                  )}>
+                    {trend.priceMultiplier === 1.0 ? "Prix stables" : `x${trend.priceMultiplier.toFixed(2)}`}
                   </div>
                 </div>
               );

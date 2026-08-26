@@ -195,11 +195,16 @@ export function InventoryView({ searchQuery }: { searchQuery: string }) {
                     <span className="font-medium text-slate-200 text-xs sm:text-sm truncate">
                       {item.name}
                     </span>
-                    {item.quantity > 1 && (
-                      <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-white/10 shrink-0">
-                        x{item.quantity}
-                      </span>
-                    )}
+                    {item.quantity > 1 && (() => {
+                      const q = item.quantity;
+                      const label = q >= 20 ? 'grande réserve' : q >= 10 ? 'plusieurs' : q >= 4 ? 'quelques-uns' : 'peu';
+                      return (
+                        <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-white/10 shrink-0 flex items-center gap-1">
+                          <span>x{q}</span>
+                          <span className="text-slate-500 font-normal">· {label}</span>
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
 

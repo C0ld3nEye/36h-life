@@ -1,6 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import { EpisodicMemory } from '../src/types';
 
+export type { EpisodicMemory, EpisodicMemory as EpisodicMemoryItem } from '../src/types';
+
 let aiClient: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
   if (!aiClient) {
@@ -37,13 +39,23 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 export async function getEmbedding(text: string): Promise<number[] | null> {
   if (!text || text.trim().length === 0) return null;
   try {
-    const response: any = await getAI().models.embedContent({
-      model: 'gemini-embedding-2-preview',
-      contents: text.trim(),
-    });
-
-    if (response && response.embedding && Array.isArray(response.embedding.values)) {
-      return response.embedding.values;
+    const ai = getAI();
+    try {
+      const response: any = await ai.models.embedContent({
+        model: 'text-embedding-004',
+        contents: text.trim(),
+      });
+      if (response && response.embedding && Array.isArray(response.embedding.values)) {
+        return response.embedding.values;
+      }
+    } catch (modelErr) {
+      const response: any = await ai.models.embedContent({
+        model: 'gemini-embedding-2-preview',
+        contents: text.trim(),
+      });
+      if (response && response.embedding && Array.isArray(response.embedding.values)) {
+        return response.embedding.values;
+      }
     }
   } catch (err: any) {
     // Fallback: silently handle quota, offline mode, or embedding service status
@@ -111,8 +123,8 @@ export async function retrieveRelevantMemories(
 
       return { memory: mem, score: compositeScore, cos };
     })
-    // Strict cosine similarity threshold, but allow keyword fallback if no query embedding is available
-    .filter(s => !queryEmbedding || s.cos >= 0.70);
+    // Filter out completely irrelevant fragments while keeping semantic matches and keyword fallbacks
+    .filter(s => s.score >= 0.25 || (s.cos > 0 && s.cos >= 0.45));
 
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, Math.min(topK, 5)).map(s => s.memory);

@@ -2,11 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { 
   Map, MapPin, Compass, Navigation, ArrowRight, Clock, 
   Sparkles, Building, Home, ShoppingBag, Info, X, Search,
-  ChevronRight, Footprints, Train, ExternalLink, RefreshCw, Loader2, ZoomIn, Trash2
+  ChevronRight, Footprints, Train, ExternalLink, RefreshCw, Loader2, ZoomIn, Trash2, Users, AlertCircle
 } from 'lucide-react';
 import { useGameStore } from '../state/useGameState';
 import { LocationProfile, TransitRoute } from '../types';
-import { cn } from '../lib/utils';
+import { cn, getGameDateInfo } from '../lib/utils';
+import { DeterministicRulesEngine } from '../engine/rulesEngine';
 import { api } from '../lib/api';
 import { compressImageDataUrl } from '../lib/imageCompressor';
 
@@ -96,7 +97,8 @@ interface InteractiveCityMapProps {
 }
 
 export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onImageClick }: InteractiveCityMapProps) {
-  const { locations = {}, setCurrentLocation, updateLocationImage } = useGameStore();
+  const { locations = {}, characters = {}, epochRealTime, setCurrentLocation, updateLocationImage } = useGameStore();
+  const timeInfo = getGameDateInfo(epochRealTime);
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [activeLocDetails, setActiveLocDetails] = useState<LocationProfile | null>(null);
   const [mapSearch, setMapSearch] = useState('');
@@ -282,6 +284,8 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                       {districtLocs.map(loc => {
                         const Icon = getCategoryIcon(loc.category);
                         const isHere = loc.isCurrentLocation || (currentLocation && currentLocation.id === loc.id);
+                        const openStatus = DeterministicRulesEngine.isLocationOpen(loc, timeInfo.gameHourOfDay);
+                        const npcsHere = Object.values(characters).filter(c => c.currentLocationId === loc.id || c.locationEncountered === loc.name);
 
                         return (
                           <button
@@ -314,12 +318,27 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                                   {loc.name}
                                 </span>
                               </div>
-                              {isHere && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                                  ICI
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span className={cn(
+                                  "text-[9px] font-bold px-1.5 py-0.2 rounded border",
+                                  openStatus.isOpen ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                                )}>
+                                  {openStatus.isOpen ? "Ouvert" : "Fermé"}
                                 </span>
-                              )}
+                                {isHere && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    ICI
+                                  </span>
+                                )}
+                              </div>
                             </div>
+
+                            {npcsHere.length > 0 && (
+                              <div className="flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md font-medium truncate">
+                                <Users className="w-3 h-3 shrink-0 text-amber-400" />
+                                <span className="truncate">{npcsHere.map(c => c.name).join(', ')}</span>
+                              </div>
+                            )}
 
                             <p className="text-[11px] text-slate-400 line-clamp-1">
                               {loc.description}
@@ -354,6 +373,8 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
             {filteredLocs.map(loc => {
               const Icon = getCategoryIcon(loc.category);
               const isHere = loc.isCurrentLocation || (currentLocation && currentLocation.id === loc.id);
+              const openStatus = DeterministicRulesEngine.isLocationOpen(loc, timeInfo.gameHourOfDay);
+              const npcsHere = Object.values(characters).filter(c => c.currentLocationId === loc.id || c.locationEncountered === loc.name);
 
               return (
                 <div
@@ -368,12 +389,12 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                   {loc.imageUrl && (
                     <div className="w-full h-20 rounded-lg overflow-hidden border border-white/10 shrink-0 relative">
                       <img 
-                                  src={loc.imageUrl} 
-                                  alt={loc.name} 
-                                  referrerPolicy="no-referrer"
-                                  onClick={(e) => { e.stopPropagation(); if(onImageClick) onImageClick(loc.imageUrl, loc.name); }}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
-                                />
+                        src={loc.imageUrl} 
+                        alt={loc.name} 
+                        referrerPolicy="no-referrer"
+                        onClick={(e) => { e.stopPropagation(); if(onImageClick) onImageClick(loc.imageUrl, loc.name); }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                      />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent pointer-events-none" />
                     </div>
                   )}
@@ -388,12 +409,27 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                         <span className="text-[10px] text-slate-400 truncate block">{loc.district || 'Saint-Michel'}</span>
                       </div>
                     </div>
-                    {isHere && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                        VOUS ÊTES ICI
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className={cn(
+                        "text-[9px] font-bold px-1.5 py-0.5 rounded border",
+                        openStatus.isOpen ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                      )}>
+                        {openStatus.isOpen ? "Ouvert" : "Fermé"}
                       </span>
-                    )}
+                      {isHere && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                          ICI
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {npcsHere.length > 0 && (
+                    <div className="flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md font-medium truncate">
+                      <Users className="w-3 h-3 shrink-0 text-amber-400" />
+                      <span className="truncate">{npcsHere.map(c => c.name).join(', ')}</span>
+                    </div>
+                  )}
 
                   <p className="text-[11px] text-slate-300 line-clamp-2 leading-relaxed font-serif">
                     {loc.description}
@@ -497,6 +533,42 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                     {isGeneratingImg ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" /> : <Sparkles className="w-3.5 h-3.5 text-emerald-400" />}
                     <span>Générer l'illustration du lieu</span>
                   </button>
+                </div>
+              )}
+
+              {/* Living City: Open/Closed & NPCs in modal */}
+              <div className="flex items-center gap-2 flex-wrap pb-1">
+                <span className={cn(
+                  "text-xs font-bold px-2.5 py-1 rounded-xl border flex items-center gap-1.5",
+                  DeterministicRulesEngine.isLocationOpen(activeLocDetails, timeInfo.gameHourOfDay).isOpen 
+                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" 
+                    : "bg-rose-500/15 text-rose-300 border-rose-500/40"
+                )}>
+                  <span>{DeterministicRulesEngine.isLocationOpen(activeLocDetails, timeInfo.gameHourOfDay).isOpen ? "● Lieu ouvert & accessible" : "● Actuellement fermé"}</span>
+                </span>
+                {DeterministicRulesEngine.isLocationOpen(activeLocDetails, timeInfo.gameHourOfDay).reason && (
+                  <span className="text-xs text-rose-300/90 italic">
+                    ({DeterministicRulesEngine.isLocationOpen(activeLocDetails, timeInfo.gameHourOfDay).reason})
+                  </span>
+                )}
+              </div>
+
+              {/* Present NPCs in this location */}
+              {Object.values(characters).filter(c => c.currentLocationId === activeLocDetails.id || c.locationEncountered === activeLocDetails.name).length > 0 && (
+                <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-xl border border-amber-500/20">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Personnages présents sur les lieux :</span>
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {Object.values(characters)
+                      .filter(c => c.currentLocationId === activeLocDetails.id || c.locationEncountered === activeLocDetails.name)
+                      .map(c => (
+                        <span key={c.id} className="text-xs bg-amber-500/10 text-amber-200 border border-amber-500/30 px-2.5 py-1 rounded-lg font-medium">
+                          👤 {c.name} {c.occupation ? `(${c.occupation})` : ''}
+                        </span>
+                      ))}
+                  </div>
                 </div>
               )}
 

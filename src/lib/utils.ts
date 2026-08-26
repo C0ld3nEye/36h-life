@@ -512,10 +512,14 @@ export function findMatchingInventoryItemIndex(
     } else if (normTarget.length > 2 && (normItemName.includes(normTarget) || normTarget.includes(normItemName))) {
       score += 60;
     } else {
-      // Word overlap (e.g. "oeufs" in "boite de 6 oeufs")
+      // Word overlap (e.g. "oeufs" in "boite de 6 oeufs") with strict word equality / plural handling
       const targetWords = normTarget.split(" ").filter(w => w.length > 2);
       const itemWords = normItemName.split(" ").filter(w => w.length > 2);
-      const matches = targetWords.filter(tw => itemWords.some(iw => iw.includes(tw) || tw.includes(iw)));
+      const matches = targetWords.filter(tw => itemWords.some(iw => {
+        if (tw === iw) return true;
+        if (tw.length >= 4 && (tw + 's' === iw || iw + 's' === tw || tw + 'x' === iw || iw + 'x' === tw)) return true;
+        return false;
+      }));
       if (matches.length > 0) {
         score += matches.length * 30;
       }

@@ -14,6 +14,32 @@ import { MentalSlice, createMentalSlice } from './slices/createMentalSlice';
 import { BankSlice, createBankSlice } from './slices/createBankSlice';
 import { WorldSlice, createWorldSlice } from './slices/createWorldSlice';
 
+/**
+ * @file useGameState.ts — Store Zustand central de SimDeVie 36H-Life
+ *
+ * Ce fichier assemble les 5 slices et contient les actions transversales.
+ * Chaque slice gère son propre domaine de données.
+ *
+ * ─── STRUCTURE DU FICHIER ─────────────────────────────────────────────────────
+ * L.1    Imports
+ * L.19   Interface GameStore — contrat public du store
+ * L.29   INITIAL_STATE — état initial complet du jeu
+ * L.327  sanitizeChoices() — utilitaire de nettoyage des choix IA
+ * L.~360 useGameStore — création Zustand (create<GameStore>)
+ *   L.~390  loadState() — chargement d'un état sauvegardé
+ *   L.~420  tick() — horloge en temps réel (appelée toutes les secondes)
+ *   L.~550  dispatchGameAction() — dispatcher d'actions joueur typées
+ *   L.956   processActionResponse() — application d'une réponse IA sur le state
+ *   L.~1300 resetGame() / continueGameAfterEpilogue() / recoverFromBreakdown()
+ *   L.~1400 Slices : createTimeSlice, createInventorySlice, createMentalSlice,
+ *             createBankSlice, createWorldSlice
+ * ──────────────────────────────────────────────────────────────────────────────
+ *
+ * Pour modifier les règles métier, voir : src/engine/rulesEngine.ts
+ * Pour les types de données, voir : src/types.ts
+ * Pour la persistance IDB, voir : src/lib/dbPersistence.ts
+ */
+
 export const GAME_TIME_MULTIPLIER = 1;
 
 export interface GameStore extends TimeSlice, InventorySlice, MentalSlice, BankSlice, WorldSlice {
@@ -176,7 +202,16 @@ export const INITIAL_STATE: GameState = {
       financialRelation: 'Aucune',
       pendingItems: [],
       upcomingEvents: ['Café d\'accueil à l\'occasion'],
-      notes: 'Ami et voisin serviable. Toujours partant pour donner un coup de main ou partager un verre.'
+      notes: 'Ami et voisin serviable. Toujours partant pour donner un coup de main ou partager un verre.',
+      socialTies: [
+        {
+          targetCharacterId: 'char-marcus',
+          targetCharacterName: 'Marcus (Bistro Néo-Lumina)',
+          relationshipType: 'ami',
+          dynamicSummary: 'Client régulier et ami proche au bistro du quartier'
+        }
+      ],
+      favorBalance: 1
     }
   },
   locations: {
@@ -320,6 +355,25 @@ export const INITIAL_STATE: GameState = {
         'Salut, j\'ai encore quelques démarches mais je note l\'invitation avec plaisir !',
         'Bien reçu. À très vite au bistro !'
       ]
+    }
+  ],
+  favorsNetwork: {
+    'char-leo': {
+      characterId: 'char-leo',
+      characterName: 'Léo Mercier',
+      balance: 1,
+      lastFavorDescription: "Aide chaleureuse pour décharger les cartons lors de l'emménagement.",
+      lastUpdatedGameDate: Date.now()
+    }
+  },
+  marketTrends: [
+    {
+      id: 'trend-init-01',
+      category: 'nourriture',
+      label: 'Approvisionnement régulier à Saint-Michel',
+      priceMultiplier: 1.0,
+      reason: "Les commerces de bouche et le marché du quartier sont bien achalandés.",
+      expiresAtGameDate: Date.now() + 15 * 36 * 3600 * 1000
     }
   ]
 };
@@ -1044,6 +1098,26 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
                     freshness: update.freshness || currentItem.freshness
                   };
                 }
+              } else if (currentItem.quantity > 1 && countInNameMatch && Math.abs(delta) < parseInt(countInNameMatch[2], 10)) {
+                // Consumed a few items from a multi-pack stack: split 1 box and leave the rest intact
+                const totalUnits = parseInt(countInNameMatch[2], 10);
+                const remainingUnits = totalUnits + delta;
+                const prefix = countInNameMatch[1]?.trim() ? `${countInNameMatch[1].trim()} de ` : '';
+                const unitWord = (remainingUnits === 1 && /^(?:oeuf|œuf)/i.test(countInNameMatch[3]))
+                  ? (countInNameMatch[3].startsWith('œ') ? 'œuf' : 'oeuf')
+                  : countInNameMatch[3];
+                const newName = `${prefix}${remainingUnits} ${unitWord}${countInNameMatch[4]}`.replace(/\s+/g, ' ').trim();
+                currentInv[matchIdx] = {
+                  ...currentItem,
+                  quantity: currentItem.quantity - 1
+                };
+                currentInv.push({
+                  ...currentItem,
+                  id: Math.random().toString(36).substring(7),
+                  name: newName,
+                  quantity: 1,
+                  freshness: 'entame'
+                });
               } else {
                 const newQty = currentItem.quantity + delta;
                 if (newQty <= 0) {
@@ -1137,6 +1211,7 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     if (res.updatedCharacters) {
       set((state) => {
         const chars = { ...state.characters };
+        const favors = { ...(state.favorsNetwork || {}) };
         res.updatedCharacters!.forEach(update => {
           if (chars[update.id]) {
             const char = { ...chars[update.id] };
@@ -1148,12 +1223,24 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
             if (update.financialRelation) char.financialRelation = update.financialRelation;
             if (update.pendingItems) char.pendingItems = update.pendingItems;
             if (update.upcomingEvents) char.upcomingEvents = update.upcomingEvents;
+            if (update.currentLocationId !== undefined) char.currentLocationId = update.currentLocationId;
+            if (update.socialTies) char.socialTies = update.socialTies;
+            if (update.favorDelta !== undefined) {
+              const prev = char.favorBalance || 0;
+              char.favorBalance = prev + update.favorDelta;
+              favors[update.id] = {
+                characterId: update.id,
+                characterName: char.name,
+                balance: char.favorBalance,
+                lastUpdatedGameDate: Date.now()
+              };
+            }
             if (update.notesAppend) char.notes = (char.notes ? char.notes + "\n" : "") + update.notesAppend;
             if (update.notesReplace) char.notes = update.notesReplace;
             chars[update.id] = char;
           }
         });
-        return { characters: chars, lastUpdateTime: Date.now() };
+        return { characters: chars, favorsNetwork: favors, lastUpdateTime: Date.now() };
       });
     }
 
@@ -1168,6 +1255,9 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
             if (update.description) loc.description = update.description;
             if (update.keyFeatures) loc.keyFeatures = update.keyFeatures;
             if (update.associatedCharacters) loc.associatedCharacters = update.associatedCharacters;
+            if (update.accessLevel) loc.accessLevel = update.accessLevel;
+            if (update.openingHours) loc.openingHours = update.openingHours;
+            if (update.temporaryStatus) loc.temporaryStatus = update.temporaryStatus;
             if (update.notesAppend) loc.notes = (loc.notes ? loc.notes + "\n" : "") + update.notesAppend;
             if (update.notesReplace) loc.notes = update.notesReplace;
             locs[update.id] = loc;
@@ -1280,6 +1370,26 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
       });
     }
 
+    if (res.updatedAgendaEvents && res.updatedAgendaEvents.length > 0) {
+      set((state) => {
+        const currentAgenda = [...(state.agenda || [])];
+        res.updatedAgendaEvents!.forEach(update => {
+          const idx = currentAgenda.findIndex(e => e.id === update.id);
+          if (idx !== -1) {
+            currentAgenda[idx] = {
+              ...currentAgenda[idx],
+              title: update.title !== undefined ? update.title : currentAgenda[idx].title,
+              description: update.description !== undefined ? update.description : currentAgenda[idx].description,
+              dateGameStr: update.dateGameStr !== undefined ? update.dateGameStr : currentAgenda[idx].dateGameStr,
+              category: update.category !== undefined ? update.category : currentAgenda[idx].category,
+              completed: update.completed !== undefined ? update.completed : currentAgenda[idx].completed
+            };
+          }
+        });
+        return { agenda: currentAgenda, lastUpdateTime: Date.now() };
+      });
+    }
+
     if (res.newPlotLeads && res.newPlotLeads.length > 0) {
       set((state) => {
         const current = [...(state.plotLeads || [])];
@@ -1304,6 +1414,9 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
               ...existing,
               qualitativeStage: update.qualitativeStage || existing.qualitativeStage,
               status: update.status || existing.status,
+              expiredReason: update.expiredReason !== undefined ? update.expiredReason : existing.expiredReason,
+              expiryWarningText: update.expiryWarningText !== undefined ? update.expiryWarningText : existing.expiryWarningText,
+              expiresAtGameDate: update.expiresAtGameDate !== undefined ? update.expiresAtGameDate : existing.expiresAtGameDate,
               clues: update.newClues && update.newClues.length > 0 
                 ? [...(existing.clues || []), ...update.newClues] 
                 : existing.clues
@@ -1394,6 +1507,25 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
       }));
     }
 
+    if (res.newMarketTrends && res.newMarketTrends.length > 0) {
+      set((state) => {
+        const trends = [...(state.marketTrends || [])];
+        res.newMarketTrends!.forEach(t => {
+          if (!t.label) return;
+          trends.push({
+            id: `trend-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            category: t.category || 'divers',
+            label: t.label,
+            priceMultiplier: t.priceMultiplier ?? 1.0,
+            reason: t.reason || '',
+            district: t.district,
+            expiresAtGameDate: t.expiresAtGameDate || (Date.now() + 15 * 36 * 3600 * 1000)
+          });
+        });
+        return { marketTrends: trends, lastUpdateTime: Date.now() };
+      });
+    }
+
     // Evaluate terminal status
     const statusEval = DeterministicRulesEngine.evaluateGameStatus(get());
     if (statusEval.status !== 'active') {
@@ -1406,6 +1538,21 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     const now = Date.now();
     const deltaMs = now - (state.lastUpdateTime || now);
     
+    // Living City: Evaluate PlotLead expirations
+    const { hasChanged: leadsExpired, updatedLeads } = DeterministicRulesEngine.evaluatePlotLeadExpirations(state.plotLeads || [], now);
+    const updates: Partial<GameState> = { lastUpdateTime: now };
+    if (leadsExpired) {
+      updates.plotLeads = updatedLeads;
+    }
+
+    // Living City: Evaluate MarketTrend expirations
+    if (state.marketTrends && state.marketTrends.length > 0) {
+      const { hasChanged: trendsExpired, updatedTrends } = DeterministicRulesEngine.evaluateMarketTrendExpirations(state.marketTrends, now);
+      if (trendsExpired) {
+        updates.marketTrends = updatedTrends;
+      }
+    }
+    
     if (state.currentTask && now >= state.currentTask.endTimeReal) {
       set({ currentTask: null });
     }
@@ -1417,7 +1564,6 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
     }
 
     const deltaDays = deltaMs / (36 * 60 * 60 * 1000);
-    const updates: Partial<GameState> = { lastUpdateTime: now };
     
     // Mindset natural homeostasis & passive strain
     const currentMindset = updates.vitals?.mindset ?? state.vitals.mindset ?? 50;
@@ -1524,15 +1670,34 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
       const updatedBills = currentBank.recurringBills.map(bill => {
         if (bill.nextDueDate && now >= bill.nextDueDate) {
           billsChanged = true;
-          currentBank.checking -= bill.amount;
-          txList.unshift({
-            id: Math.random().toString(36).substring(7),
-            timestamp: now,
-            label: `Prélèvement automatique - ${bill.name}`,
-            amount: -bill.amount,
-            account: 'checking',
-            category: 'depense'
-          });
+          const maxDebit = Math.max(0, currentBank.checking + 100);
+          const actualDebit = Math.min(bill.amount, maxDebit);
+          const unpaid = bill.amount - actualDebit;
+
+          if (actualDebit > 0) {
+            currentBank.checking -= actualDebit;
+            txList.unshift({
+              id: Math.random().toString(36).substring(7),
+              timestamp: now,
+              label: unpaid > 0 ? `Prélèvement partiel - ${bill.name}` : `Prélèvement automatique - ${bill.name}`,
+              amount: -actualDebit,
+              account: 'checking',
+              category: 'depense'
+            });
+          }
+
+          if (unpaid > 0) {
+            currentBank.debts = (currentBank.debts || 0) + unpaid;
+            txList.unshift({
+              id: Math.random().toString(36).substring(7),
+              timestamp: now,
+              label: `Impayé reporté en dette - ${bill.name}`,
+              amount: unpaid,
+              account: 'debts',
+              category: 'facture'
+            });
+          }
+
           return {
             ...bill,
             nextDueDate: bill.nextDueDate + 30 * 36 * 60 * 60 * 1000
@@ -1556,7 +1721,7 @@ export const useGameStore = create<GameStore>()((set, get, api) => ({
         hunger: Math.max(0, Math.min(100, Math.round((state.vitals.hunger - 10.0 * deltaHours) * 100) / 100)),
         hygiene: Math.max(0, Math.min(100, Math.round((state.vitals.hygiene - 3.0 * deltaHours) * 100) / 100)),
         mood: Math.max(0, Math.min(100, Math.round((state.vitals.mood - 1.0 * deltaHours) * 100) / 100)),
-        mindset: state.vitals.mindset ?? 50
+        mindset: updates.vitals?.mindset ?? Math.round(newMindset * 10) / 10
       };
     }
     

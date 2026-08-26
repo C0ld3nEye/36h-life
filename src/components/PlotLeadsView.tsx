@@ -3,7 +3,7 @@ import {
   Compass, Search, Plus, CheckCircle2, PauseCircle, PlayCircle, 
   HelpCircle, Trash2, Edit3, MessageSquare, MapPin, User, Tag, 
   Sparkles, AlertCircle, Eye, ChevronRight, X, Check, ShieldAlert,
-  Radio, FileText, ArrowRight, CornerDownRight
+  Radio, FileText, ArrowRight, CornerDownRight, Clock, AlertTriangle
 } from 'lucide-react';
 import { useGameStore } from '../state/useGameState';
 import { PlotLead, RumorEntry } from '../types';
@@ -24,7 +24,7 @@ export function PlotLeadsView() {
   } = useGameStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'leads' | 'rumors'>('leads');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'actif' | 'en_pause' | 'resolu'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'actif' | 'en_pause' | 'resolu' | 'expire'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -41,6 +41,7 @@ export function PlotLeadsView() {
   const [formCategory, setFormCategory] = useState<PlotLead['category']>('emploi');
   const [formQualitativeStage, setFormQualitativeStage] = useState('Premiers indices recueillis');
   const [formInitialClue, setFormInitialClue] = useState('');
+  const [formExpiryWarning, setFormExpiryWarning] = useState('');
   const [formNotes, setFormNotes] = useState('');
 
   // Form states for new Rumor
@@ -102,6 +103,8 @@ export function PlotLeadsView() {
         return { label: 'En attente d\'éléments', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', icon: PauseCircle };
       case 'resolu':
         return { label: 'Affaire élucidée / Conclue', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/30', icon: CheckCircle2 };
+      case 'expire':
+        return { label: 'Opportunité expirée / Manquée', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30', icon: AlertCircle };
       default:
         return { label: 'Piste abandonnée', color: 'text-slate-500', bg: 'bg-slate-900 border-white/5', icon: HelpCircle };
     }
@@ -129,12 +132,14 @@ export function PlotLeadsView() {
       status: 'actif',
       qualitativeStage: formQualitativeStage.trim() || 'Premiers repérages effectués',
       clues,
+      expiryWarningText: formExpiryWarning.trim() || undefined,
       notes: formNotes.trim() || undefined,
       discoveredGameDateStr: 'Jour actuel'
     });
 
     setFormTitle('');
     setFormInitialClue('');
+    setFormExpiryWarning('');
     setFormNotes('');
     setShowNewLeadModal(false);
   };
@@ -272,6 +277,12 @@ export function PlotLeadsView() {
             >
               Élucidées
             </button>
+            <button
+              onClick={() => setFilterStatus('expire')}
+              className={cn("px-2.5 py-1 rounded-lg font-medium border whitespace-nowrap cursor-pointer transition-all", filterStatus === 'expire' ? "bg-rose-500/20 text-rose-300 border-rose-500/40" : "bg-slate-900 text-slate-400 border-white/5 hover:text-slate-200")}
+            >
+              Expirées
+            </button>
           </div>
         )}
       </div>
@@ -304,7 +315,9 @@ export function PlotLeadsView() {
                     }}
                     className={cn(
                       "p-4 glass-panel rounded-2xl border transition-all hover:bg-white/5 cursor-pointer flex flex-col gap-3 group relative overflow-hidden",
-                      lead.status === 'resolu' ? "border-sky-500/30 opacity-80" : "border-white/10 hover:border-amber-500/40"
+                      lead.status === 'resolu' ? "border-sky-500/30 opacity-80" : 
+                      lead.status === 'expire' ? "border-rose-500/30 opacity-90" : 
+                      "border-white/10 hover:border-amber-500/40"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -324,6 +337,22 @@ export function PlotLeadsView() {
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
                     </div>
+
+                    {/* Expiry Warning if active with deadline */}
+                    {lead.status === 'actif' && lead.expiryWarningText && (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="font-medium">{lead.expiryWarningText}</span>
+                      </div>
+                    )}
+
+                    {/* Expired Reason if missed */}
+                    {lead.status === 'expire' && lead.expiredReason && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                        <span className="leading-snug">{lead.expiredReason}</span>
+                      </div>
+                    )}
 
                     {/* Qualitative progression stage */}
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-white/5 text-xs text-slate-300">
@@ -468,7 +497,34 @@ export function PlotLeadsView() {
                   >
                     Marquer comme Résolue
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus('expire')}
+                    className={cn(
+                      "px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
+                      selectedLead.status === 'expire' ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-sm" : "bg-slate-900 text-slate-400 border-white/5 hover:text-slate-200"
+                    )}
+                  >
+                    Expirée / Manquée
+                  </button>
                 </div>
+
+                {/* Expiration warning or Expired explanation banner */}
+                {selectedLead.status === 'expire' && selectedLead.expiredReason && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-200 mt-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-rose-300 block mb-0.5">Opportunité manquée :</span>
+                      <span>{selectedLead.expiredReason}</span>
+                    </div>
+                  </div>
+                )}
+                {selectedLead.status === 'actif' && selectedLead.expiryWarningText && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-300 mt-2">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>{selectedLead.expiryWarningText}</span>
+                  </div>
+                )}
               </div>
 
               {/* Clues collection */}
@@ -639,6 +695,17 @@ export function PlotLeadsView() {
                   value={formInitialClue}
                   onChange={(e) => setFormInitialClue(e.target.value)}
                   placeholder="Ex: Un document laissé sur la table..."
+                  className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-300">Échéance / Délai qualitatif (optionnel)</label>
+                <input
+                  type="text"
+                  value={formExpiryWarning}
+                  onChange={(e) => setFormExpiryWarning(e.target.value)}
+                  placeholder="Ex: Valable jusqu'à ce soir, Témoin sur le départ..."
                   className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
                 />
               </div>
