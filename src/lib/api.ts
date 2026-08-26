@@ -449,17 +449,16 @@ export const api = {
   },
 
   async generateVisual(prompt: string, type: 'character' | 'location', seed?: string): Promise<{ imageUrl: string }> {
-    try {
-      const res = await fetchWithRetry('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, type, seed })
-      }, 1, 30000);
-      return await res.json();
-    } catch (err) {
-      console.warn("Visual generation error, returning fallback:", err);
-      return { imageUrl: '' };
+    const res = await fetchWithRetry('/api/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, type, seed })
+    }, 1, 30000);
+    const data = await res.json();
+    if (!data?.imageUrl) {
+      throw new Error("Aucune image générée.");
     }
+    return data;
   },
 
   async generateIntrospection(state: any): Promise<{ title: string; content: string; mood: string; category?: string; milestone?: boolean }> {

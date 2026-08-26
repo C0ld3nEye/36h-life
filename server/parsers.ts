@@ -42,7 +42,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
         if (parsed && typeof parsed === 'object') {
           return parsed;
         }
-      } catch (e2) {}
+      } catch (e2) {
+        console.debug("Candidate JSON repair failed:", (e2 as Error)?.message);
+      }
     }
   }
 
@@ -123,7 +125,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedChars = JSON.parse(charMatch[1]);
       if (Array.isArray(parsedChars) && parsedChars.length > 0) result.newCharacters = parsedChars;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (newCharacters):", (e as Error)?.message);
+    }
   }
 
   const locMatch = clean.match(/"?newLocations"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -131,7 +135,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedLocs = JSON.parse(locMatch[1]);
       if (Array.isArray(parsedLocs) && parsedLocs.length > 0) result.newLocations = parsedLocs;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (newLocations):", (e as Error)?.message);
+    }
   }
 
   const updateCharMatch = clean.match(/"?updatedCharacters"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -139,7 +145,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedUpdates = JSON.parse(updateCharMatch[1]);
       if (Array.isArray(parsedUpdates) && parsedUpdates.length > 0) result.updatedCharacters = parsedUpdates;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (updatedCharacters):", (e as Error)?.message);
+    }
   }
 
   const updateLocMatch = clean.match(/"?updatedLocations"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -147,7 +155,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedLocUpdates = JSON.parse(updateLocMatch[1]);
       if (Array.isArray(parsedLocUpdates) && parsedLocUpdates.length > 0) result.updatedLocations = parsedLocUpdates;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (updatedLocations):", (e as Error)?.message);
+    }
   }
 
   const moneyMatch = clean.match(/"?moneyImpact"?\s*:\s*(\{.*?\})(?:,\s*"?\w+"?\s*:|$)/s);
@@ -155,7 +165,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedMoney = JSON.parse(moneyMatch[1]);
       if (parsedMoney && typeof parsedMoney === 'object') result.moneyImpact = parsedMoney;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (moneyImpact):", (e as Error)?.message);
+    }
   }
 
   const vitalsMatch = clean.match(/"?vitalsImpact"?\s*:\s*(\{.*?\})(?:,\s*"?\w+"?\s*:|$)/s);
@@ -163,7 +175,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedVitals = JSON.parse(vitalsMatch[1]);
       if (parsedVitals && typeof parsedVitals === 'object') result.vitalsImpact = parsedVitals;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (vitalsImpact):", (e as Error)?.message);
+    }
   }
 
   const plotLeadMatch = clean.match(/"?newPlotLeads"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -171,7 +185,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedLeads = JSON.parse(plotLeadMatch[1]);
       if (Array.isArray(parsedLeads) && parsedLeads.length > 0) result.newPlotLeads = parsedLeads;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (newPlotLeads):", (e as Error)?.message);
+    }
   }
 
   const updatePlotMatch = clean.match(/"?updatedPlotLeads"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -179,7 +195,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedUp = JSON.parse(updatePlotMatch[1]);
       if (Array.isArray(parsedUp) && parsedUp.length > 0) result.updatedPlotLeads = parsedUp;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (updatedPlotLeads):", (e as Error)?.message);
+    }
   }
 
   const msgMatch = clean.match(/"?newMessages"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -187,7 +205,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedMsg = JSON.parse(msgMatch[1]);
       if (Array.isArray(parsedMsg) && parsedMsg.length > 0) result.newMessages = parsedMsg;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (newMessages):", (e as Error)?.message);
+    }
   }
 
   const rumorMatch = clean.match(/"?newRumors"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -195,7 +215,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedRumors = JSON.parse(rumorMatch[1]);
       if (Array.isArray(parsedRumors) && parsedRumors.length > 0) result.newRumors = parsedRumors;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (newRumors):", (e as Error)?.message);
+    }
   }
 
   const invMatch = clean.match(/"?inventoryUpdates"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -203,7 +225,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedInv = JSON.parse(invMatch[1]);
       if (Array.isArray(parsedInv) && parsedInv.length > 0) result.inventoryUpdates = parsedInv;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (inventoryUpdates):", (e as Error)?.message);
+    }
   }
 
   const skillsMatch = clean.match(/"?skillsImpact"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -211,7 +235,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedSkills = JSON.parse(skillsMatch[1]);
       if (Array.isArray(parsedSkills) && parsedSkills.length > 0) result.skillsImpact = parsedSkills;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (skillsImpact):", (e as Error)?.message);
+    }
   }
 
   const diaryMatch = clean.match(/"?diaryEntry"?\s*:\s*(\{.*?\})(?:,\s*"?\w+"?\s*:|$)/s);
@@ -219,7 +245,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedDiary = JSON.parse(diaryMatch[1]);
       if (parsedDiary && typeof parsedDiary === 'object') result.diaryEntry = parsedDiary;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (diaryEntry):", (e as Error)?.message);
+    }
   }
 
   const memoryMatch = clean.match(/"?episodicMemory"?\s*:\s*(\{.*?\})(?:,\s*"?\w+"?\s*:|$)/s);
@@ -227,7 +255,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedMemory = JSON.parse(memoryMatch[1]);
       if (parsedMemory && typeof parsedMemory === 'object') result.episodicMemory = parsedMemory;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (episodicMemory):", (e as Error)?.message);
+    }
   }
 
   const taskSummaryMatch = clean.match(/"?taskSummary"?\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -240,7 +270,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedHooks = JSON.parse(hooksMatch[1]);
       if (Array.isArray(parsedHooks) && parsedHooks.length > 0) result.activePlotHooks = parsedHooks;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (activePlotHooks):", (e as Error)?.message);
+    }
   }
 
   const trendsMatch = clean.match(/"?newMarketTrends"?\s*:\s*(\[.*?\])(?:,\s*"?\w+"?\s*:|$)/s);
@@ -248,7 +280,9 @@ export function safeParseActionResponse(rawText: string, defaultAction = ''): an
     try {
       const parsedTrends = JSON.parse(trendsMatch[1]);
       if (Array.isArray(parsedTrends) && parsedTrends.length > 0) result.newMarketTrends = parsedTrends;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Parse repair attempt failed (newMarketTrends):", (e as Error)?.message);
+    }
   }
 
   const durationMatch = clean.match(/"?durationMinutes"?\s*:\s*(\d+)/);
@@ -338,7 +372,9 @@ export function safeParseOfflineRecap(rawText: string, offlineHours: number, off
     if (directParsed && typeof directParsed === 'object' && directParsed.narrativeRecap) {
       parsed = directParsed;
     }
-  } catch (e) {}
+  } catch (e) {
+    console.debug("Direct JSON parse failed in safeParseOfflineRecap:", (e as Error)?.message);
+  }
 
   if (!parsed) {
     const firstBrace = clean.indexOf('{');
@@ -349,7 +385,9 @@ export function safeParseOfflineRecap(rawText: string, offlineHours: number, off
         if (braceParsed && typeof braceParsed === 'object' && braceParsed.narrativeRecap) {
           parsed = braceParsed;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.debug("Brace JSON parse failed in safeParseOfflineRecap:", (e as Error)?.message);
+      }
     }
   }
 
@@ -380,7 +418,9 @@ export function safeParseOfflineRecap(rawText: string, offlineHours: number, off
         if (Array.isArray(parsedInv) && parsedInv.length > 0) {
           parsed.inventoryUpdates = parsedInv;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.debug("Parse repair attempt failed (offline inventoryUpdates):", (e as Error)?.message);
+      }
     }
   }
 
@@ -392,7 +432,9 @@ export function safeParseTaskProgress(rawText: string, taskDesc: string): any {
   try {
     const parsed = JSON.parse(clean);
     if (parsed && typeof parsed === 'object') return parsed;
-  } catch (e) {}
+  } catch (e) {
+    console.debug("Direct JSON parse failed in safeParseTaskProgress:", (e as Error)?.message);
+  }
 
   const firstBrace = clean.indexOf('{');
   const lastBrace = clean.lastIndexOf('}');
@@ -400,7 +442,9 @@ export function safeParseTaskProgress(rawText: string, taskDesc: string): any {
     try {
       const parsed = JSON.parse(clean.substring(firstBrace, lastBrace + 1));
       if (parsed && typeof parsed === 'object') return parsed;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Brace JSON parse failed in safeParseTaskProgress:", (e as Error)?.message);
+    }
   }
 
   let snippet = "";
@@ -420,7 +464,9 @@ export function safeParseIntrospection(rawText: string): any {
   try {
     const parsed = JSON.parse(clean);
     if (parsed && typeof parsed === 'object') return parsed;
-  } catch (e) {}
+  } catch (e) {
+    console.debug("Direct JSON parse failed in safeParseIntrospection:", (e as Error)?.message);
+  }
 
   const firstBrace = clean.indexOf('{');
   const lastBrace = clean.lastIndexOf('}');
@@ -428,7 +474,9 @@ export function safeParseIntrospection(rawText: string): any {
     try {
       const parsed = JSON.parse(clean.substring(firstBrace, lastBrace + 1));
       if (parsed && typeof parsed === 'object') return parsed;
-    } catch (e) {}
+    } catch (e) {
+      console.debug("Brace JSON parse failed in safeParseIntrospection:", (e as Error)?.message);
+    }
   }
 
   let content = "";

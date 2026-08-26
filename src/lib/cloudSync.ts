@@ -87,7 +87,7 @@ export function triggerCloudSave(state: any, immediate = false) {
     try {
       localStorage.setItem('local_game_state', JSON.stringify(cleanState));
     } catch (e) {
-      // LocalStorage quota fallback
+      console.warn("localStorage quota exceeded or unavailable, relying on IndexedDB only:", (e as Error)?.message);
     }
   } catch (e) {
     console.warn("Failed local backup:", e);

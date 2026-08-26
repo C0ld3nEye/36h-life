@@ -43,8 +43,13 @@ export function CharactersView({ searchQuery, showToast, onLightbox }: Character
       const compressedUrl = await compressImageDataUrl(res.imageUrl);
       updateCharacterImage(selectedChar.id, compressedUrl);
       setSelectedChar(prev => prev ? { ...prev, imageUrl: compressedUrl } : null);
-    } catch (err) { console.error('Failed to generate character visual:', err); }
-    finally { setIsGeneratingImg(false); }
+      showToast("Portrait généré avec succès !");
+    } catch (err) {
+      console.error('Failed to generate character visual:', err);
+      showToast("Impossible de générer le portrait pour l'instant.");
+    } finally {
+      setIsGeneratingImg(false);
+    }
   };
 
   const relStatus = (s?: string) => {
@@ -116,7 +121,7 @@ export function CharactersView({ searchQuery, showToast, onLightbox }: Character
                 {selectedChar.imageUrl ? (
                   <div onClick={() => onLightbox(selectedChar.imageUrl!, selectedChar.name)} className="relative group shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-rose-500/40">
                     <img src={selectedChar.imageUrl} alt={selectedChar.name} referrerPolicy="no-referrer" className="w-28 h-28 sm:w-32 sm:h-32 object-cover group-hover:scale-105 transition-transform"/>
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-[11px] backdrop-blur-[1px]"><ZoomIn className="w-6 h-6 text-rose-300"/><span>Agrandir</span></div>
+                    <div className="absolute inset-0 bg-black/40 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-[11px] backdrop-blur-[1px]"><ZoomIn className="w-6 h-6 text-rose-300"/><span>Agrandir</span></div>
                   </div>
                 ) : (
                   <div className="w-28 h-28 rounded-2xl bg-slate-950 border border-dashed border-rose-500/30 flex flex-col items-center justify-center gap-1.5 text-slate-500 shrink-0"><User className="w-8 h-8 text-rose-400/50"/><span className="text-[10px]">Aucun portrait</span></div>

@@ -75,7 +75,7 @@ export const createWorldSlice: StateCreator<GameStore, [], [], WorldSlice> = (se
 
     // Clean any bleeding artifacts
     content = content
-      .replace(/(?:,\s*)?(?:choices|newAgendaEvents|newCharacters|newLocations|vitalsImpact|moneyImpact|skillsImpact|isDangerous|dangerWarning)\s*:\s*.*$/is, '')
+      .replace(/(?:,\s*)?(?:")?(?:choices|newAgendaEvents|newCharacters|newLocations|vitalsImpact|moneyImpact|skillsImpact|isDangerous|dangerWarning)(?:")?\s*:\s*[\[{"].*$/is, '')
       .replace(/^[\{\}\[\]"']+|[\{\}\[\]"']+$/g, '')
       .trim();
 

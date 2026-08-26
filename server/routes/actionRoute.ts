@@ -201,6 +201,6 @@ Génère la réponse au format JSON conforme au schéma.`;
   } catch (error: any) {
     console.error("Action error:", error);
     const fallbackParsed = safeParseActionResponse("", req.body?.action || '');
-    res.json(fallbackParsed);
+    res.status(503).json({ ...fallbackParsed, _fallback: true, _error: error?.message || 'Erreur IA' });
   }
 }

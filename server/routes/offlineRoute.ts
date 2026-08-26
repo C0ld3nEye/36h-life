@@ -133,6 +133,6 @@ Génère un récapitulatif narratif riche, élégant et chronologique en frança
     const offlineRealMinutes = (req.body?.offlineDurationMs || 0) / 60000;
     const offlineHours = offlineRealMinutes / 60;
     const fallback = buildDynamicOfflineFallback(req.body?.state, offlineHours, offlineRealMinutes, req.body?.autopilotMode);
-    res.json(fallback);
+    res.status(503).json({ ...fallback, _fallback: true, _error: error?.message || 'Erreur IA' });
   }
 }

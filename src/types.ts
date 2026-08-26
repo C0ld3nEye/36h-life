@@ -220,6 +220,8 @@ export type TaskProgressResponse = {
   choices?: string[];
   vitalsImpact?: Partial<Vitals>;
   taskTimeAdjustmentMinutes?: number;
+  _fallback?: boolean;
+  _error?: string;
 };
 
 export type EpisodicMemory = {
@@ -420,6 +422,8 @@ export type ActionResponse = {
     mood?: string;
     milestone?: boolean;
   };
+  _fallback?: boolean;
+  _error?: string;
 };
 
 export type OfflineRecapRequest = {
@@ -466,4 +470,6 @@ export type OfflineRecapResponse = {
     mood?: string;
     milestone?: boolean;
   };
+  _fallback?: boolean;
+  _error?: string;
 };

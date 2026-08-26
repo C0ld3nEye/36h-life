@@ -62,6 +62,6 @@ Génère la réponse au format JSON conforme au schéma.`;
   } catch (error: any) {
     console.error("Introspection error:", error);
     const fallback = safeParseIntrospection("");
-    res.json(fallback);
+    res.status(503).json({ ...fallback, _fallback: true, _error: error?.message || 'Erreur IA' });
   }
 }

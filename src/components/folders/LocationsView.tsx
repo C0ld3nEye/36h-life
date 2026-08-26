@@ -59,8 +59,13 @@ export function LocationsView({ searchQuery, showToast, onLightbox }: LocationsV
       const compressedUrl = await compressImageDataUrl(res.imageUrl);
       updateLocationImage(selectedLoc.id, compressedUrl);
       setSelectedLoc(prev => prev ? { ...prev, imageUrl: compressedUrl } : null);
-    } catch (err) { console.error('Failed to generate location visual:', err); }
-    finally { setIsGeneratingImg(false); }
+      showToast("Illustration générée avec succès !");
+    } catch (err) {
+      console.error('Failed to generate location visual:', err);
+      showToast("Impossible de générer l'illustration pour l'instant.");
+    } finally {
+      setIsGeneratingImg(false);
+    }
   };
 
   const handleDeleteLocVisual = () => {

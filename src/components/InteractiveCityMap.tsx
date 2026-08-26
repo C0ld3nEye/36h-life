@@ -92,18 +92,19 @@ function getCategoryColor(category?: LocationProfile['category']) {
 
 interface InteractiveCityMapProps {
   onSelectLocation?: (location: LocationProfile) => void;
-  onFastTravelAction?: (actionText: string) => void;
+  onFastTravelAction: (actionText: string) => void;
   onImageClick?: (src: string, title: string) => void;
 }
 
 export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onImageClick }: InteractiveCityMapProps) {
-  const { locations = {}, characters = {}, epochRealTime, setCurrentLocation, updateLocationImage } = useGameStore();
+  const { locations = {}, characters = {}, epochRealTime, updateLocationImage } = useGameStore();
   const timeInfo = getGameDateInfo(epochRealTime);
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [activeLocDetails, setActiveLocDetails] = useState<LocationProfile | null>(null);
   const [mapSearch, setMapSearch] = useState('');
   const [isTraveling, setIsTraveling] = useState(false);
   const [isGeneratingImg, setIsGeneratingImg] = useState(false);
+  const [imgError, setImgError] = useState<string | null>(null);
 
   const locList = useMemo(() => Object.values(locations), [locations]);
 
@@ -114,6 +115,7 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
   const handleGenerateMapLocVisual = async (loc: LocationProfile) => {
     if (isGeneratingImg) return;
     setIsGeneratingImg(true);
+    setImgError(null);
     try {
       const prompt = `${loc.name}, ${loc.district || ''}, ${loc.description}`;
       const res = await api.generateVisual(prompt, 'location', loc.id);
@@ -122,6 +124,8 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
       setActiveLocDetails(prev => prev && prev.id === loc.id ? { ...prev, imageUrl: compressedUrl } : prev);
     } catch (err) {
       console.error("Failed to generate location visual from map:", err);
+      setImgError("Impossible de générer l'illustration pour l'instant.");
+      setTimeout(() => setImgError(null), 4000);
     } finally {
       setIsGeneratingImg(false);
     }
@@ -144,18 +148,11 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
 
   const handleTravelTo = (loc: LocationProfile, mode: 'a_pied' | 'transport' = 'a_pied') => {
     const isWalking = mode === 'a_pied';
-    const estimatedMinutes = isWalking ? 20 : 10;
     const modeLabel = isWalking ? "à pied (~20 min)" : "en monorail express (~10 min)";
     const prompt = `Je me déplace ${modeLabel} en direction de : "${loc.name}" (${loc.district || 'la ville'}). Décris mon trajet et mon arrivée sur place.`;
     
-    if (onFastTravelAction) {
-      onFastTravelAction(prompt);
-      setActiveLocDetails(null);
-    } else {
-      // Direct update with state transition
-      setCurrentLocation(loc.id);
-      setActiveLocDetails(null);
-    }
+    onFastTravelAction(prompt);
+    setActiveLocDetails(null);
   };
 
   return (
@@ -501,7 +498,7 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
-                  <div className="absolute bottom-2 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute bottom-2 right-2 flex items-center gap-1.5 opacity-100 sm:opacity-90 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleDeleteMapLocVisual(activeLocDetails)}
                       className="p-2 bg-red-950/80 hover:bg-red-900 text-red-300 rounded-lg border border-red-500/30 transition-all flex items-center gap-1 text-xs font-semibold backdrop-blur-sm shadow-md"
@@ -533,6 +530,13 @@ export function InteractiveCityMap({ onSelectLocation, onFastTravelAction, onIma
                     {isGeneratingImg ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" /> : <Sparkles className="w-3.5 h-3.5 text-emerald-400" />}
                     <span>Générer l'illustration du lieu</span>
                   </button>
+                </div>
+              )}
+
+              {imgError && (
+                <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{imgError}</span>
                 </div>
               )}
 

@@ -62,6 +62,6 @@ Génère la réponse au format JSON conforme au schéma.`;
   } catch (error: any) {
     console.error("Task progress error:", error);
     const fallback = safeParseTaskProgress("", req.body?.task?.description || 'Activité en cours');
-    res.json(fallback);
+    res.status(503).json({ ...fallback, _fallback: true, _error: error?.message || 'Erreur IA' });
   }
 }
